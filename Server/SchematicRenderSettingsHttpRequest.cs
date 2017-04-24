@@ -30,7 +30,7 @@ namespace KiCadDoxer
             }
             else
             {
-                uri = new Uri(request.Query["uri"]);
+                uri = new Uri(request.Query["url"]);
             }
 
             string scheme = uri.Scheme.ToLowerInvariant();
@@ -67,7 +67,7 @@ namespace KiCadDoxer
                     return true;
                 }
 
-                string uriString = context.Request.Query["uri"];
+                string uriString = context.Request.Query["url"];
                 if (!string.IsNullOrWhiteSpace(uriString))
                 {
                     Uri uri = new Uri(uriString);
