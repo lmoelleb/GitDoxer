@@ -1163,7 +1163,7 @@ namespace KiCadDoxer
             await SvgWriter.WriteStartElementAsync("g");
             await SvgWriter.WriteAttributeStringAsync("class", $"text {type.ToString().ToLowerInvariant()}");
 
-
+            bool swapVertical = false;
             switch (orientation)
             {
                 case 0:
@@ -1176,16 +1176,18 @@ namespace KiCadDoxer
 
                 case 2:
                     angle = 180;
-                    if (verticalJustify != TextVerticalJustify.Center)
-                    {
-                        verticalJustify = verticalJustify == TextVerticalJustify.Bottom ? TextVerticalJustify.Top : TextVerticalJustify.Bottom;
-                    }
+                    swapVertical = true;
                     break;
-
                 case 3:
-                    // TODO: Probably also need to be swapped either vertical or horizontal... or both. I really need to create a test sheet :)
+                    swapVertical = true;
                     angle = 90;
                     break;
+            }
+
+            // TODO: Is this really needed, or is there a problem in DrawText's handling of vertical alignment? I thought it would do any swapping needed.
+            if (swapVertical && verticalJustify != TextVerticalJustify.Center)
+            {
+                verticalJustify = verticalJustify == TextVerticalJustify.Bottom ? TextVerticalJustify.Top : TextVerticalJustify.Bottom;
             }
 
             await StrokeFont.DrawText(text, x + textOffset.X, y + textOffset.Y, size, stroke, strokeWidth, false, false, angle, horizontalJustify, verticalJustify, string.Empty);

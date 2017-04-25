@@ -187,7 +187,7 @@ namespace KiCadDoxer
             await svgWriter.WriteAttributeStringAsync("stroke", stroke);
             await svgWriter.WriteAttributeStringAsync("stroke-width", strokeWidth);
 
-            y -= lines.Length * lineHeight;
+            y -= (lines.Length - 1) * lineHeight;
             foreach (var line in lines)
             {
                 await DrawSingleLineText(line, x, Math.Round(y), glyphSize, strokeWidth);
