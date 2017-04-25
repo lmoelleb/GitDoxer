@@ -1137,6 +1137,9 @@ namespace KiCadDoxer
 
             switch (type)
             {
+                case TextType.Notes:
+                    stroke = "rgb(0,0,132)";
+                    break;
                 case TextType.Label:
                     stroke = "rgb(0,0,0)";
                     break;
@@ -1160,6 +1163,7 @@ namespace KiCadDoxer
             await SvgWriter.WriteStartElementAsync("g");
             await SvgWriter.WriteAttributeStringAsync("class", $"text {type.ToString().ToLowerInvariant()}");
 
+
             switch (orientation)
             {
                 case 0:
@@ -1172,9 +1176,14 @@ namespace KiCadDoxer
 
                 case 2:
                     angle = 180;
+                    if (verticalJustify != TextVerticalJustify.Center)
+                    {
+                        verticalJustify = verticalJustify == TextVerticalJustify.Bottom ? TextVerticalJustify.Top : TextVerticalJustify.Bottom;
+                    }
                     break;
 
                 case 3:
+                    // TODO: Probably also need to be swapped either vertical or horizontal... or both. I really need to create a test sheet :)
                     angle = 90;
                     break;
             }

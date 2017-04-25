@@ -90,7 +90,8 @@ namespace KiCadDoxer
             // I have no idea if glyphHeight is the same as size, will try! If not, I can just apply
             // a constant factor
             double lineHeight = glyphSize * InterlinePitchRatio + strokeWidth;
-            string[] lines = text.Split('\n');
+
+            string[] lines = SplitTextInLines(text).ToArray();
 
             double offsetX = 0;
             double offsetY = 0;
@@ -186,9 +187,11 @@ namespace KiCadDoxer
             await svgWriter.WriteAttributeStringAsync("stroke", stroke);
             await svgWriter.WriteAttributeStringAsync("stroke-width", strokeWidth);
 
-            foreach (string line in lines)
+            y -= lines.Length * lineHeight;
+            foreach (var line in lines)
             {
-                await DrawSingleLineText(line, x, y, glyphSize, strokeWidth);
+                await DrawSingleLineText(line, x, Math.Round(y), glyphSize, strokeWidth);
+                y += lineHeight;
             }
 
             await svgWriter.WriteEndElementAsync("g");
@@ -377,6 +380,43 @@ namespace KiCadDoxer
             double glyphStartX = (glyphDef[0] - 'R') * StrokeFontScale;
             double glyphEndX = (glyphDef[1] - 'R') * StrokeFontScale;
             return (glyphStartX, (glyphEndX - glyphStartX));
+        }
+
+        private static IEnumerable<string> SplitTextInLines(string text)
+        {
+            if (!text.Contains("\\n"))
+            {
+                yield return text;
+                yield break;
+            }
+
+            // Must fight the urge to name anything with Builder in it "Bob"
+            StringBuilder builder = new StringBuilder();
+
+            bool lastWasBackslash = false;
+            foreach (char c in text)
+            {
+                if (c == '\\' && !lastWasBackslash)
+                {
+                    lastWasBackslash = true;
+                    continue;
+                }
+
+                if (c == 'n' && lastWasBackslash)
+                {
+                    yield return builder.ToString();
+                    builder.Clear();
+                }
+                else
+                {
+                    builder.Append(c);
+                }
+
+                lastWasBackslash = false;
+            }
+
+            // Yields empty lines as well to allow trailing newline to change layout!
+            yield return builder.ToString();
         }
     }
 }
