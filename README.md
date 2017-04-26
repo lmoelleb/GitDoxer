@@ -65,10 +65,10 @@ This drawing is generated from the following link:
 ```
 https://kicaddoxer.azurewebsites.net/github/trainiot/Hardware/master/Spi2Dcc/DccStateMachine.sch?hiddenpins=ShowIfConnectedToWire
 ```
-![State Machine schematic](https://kicaddoxer.azurewebsites.net/github/trainiot/Hardware/master/Spi2Dcc/DccStateMachine.sch?hiddenpins=ShowIfConnectedToWire&1.svg)
+![State Machine schematic](https://kicaddoxer.azurewebsites.net/github/trainiot/Hardware/master/Spi2Dcc/DccStateMachine.sch?hiddenpins=ShowIfConnectedToWire&2.svg)
 The full markup syntax used is:
 ```
-![State Machine schematic](https://kicaddoxer.azurewebsites.net/github/trainiot/Hardware/master/Spi2Dcc/DccStateMachine.sch?hiddenpins=ShowIfConnectedToWire&1.svg)
+![State Machine schematic](https://kicaddoxer.azurewebsites.net/github/trainiot/Hardware/master/Spi2Dcc/DccStateMachine.sch?hiddenpins=ShowIfConnectedToWire&.svg)
 ```
 
 ## Limitations and known issues
