@@ -121,7 +121,7 @@ namespace KiCadDoxer
 
         public override void SetResponseEtagHeaderValue(string etag)
         {
-            context.Response.Headers["Cache-Control"] = "must-revalidate";
+            context.Response.Headers["Cache-Control"] = "no-cache";
             context.Response.Headers["ETag"] = etag;
             base.SetResponseEtagHeaderValue(etag);
         }
