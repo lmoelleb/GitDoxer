@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
@@ -9,6 +11,8 @@ namespace KiCadDoxer
 {
     public class LineSource : IDisposable
     {
+        private static readonly HttpStatusCode[] redirectCodes = { HttpStatusCode.MovedPermanently, HttpStatusCode.SeeOther, HttpStatusCode.TemporaryRedirect };
+        private TaskCompletionSource<string> etagCompletionSource = new TaskCompletionSource<string>();
         private int lineNumber;
 
         // TODO: Make a base LineSource and an HTTP specific subclass to allow reading from files etc
@@ -17,7 +21,9 @@ namespace KiCadDoxer
         //       awaiting reading next token and get me out of the token index hell I have
         private string peekedLine;
 
+        private bool readerCreated = false;
         private Task<TextReader> readerTask;
+        private HashSet<Uri> redirectSet = new HashSet<Uri>();
         private List<IDisposable> toDispose = new List<IDisposable>();
         private Uri uri;
 
@@ -52,18 +58,89 @@ namespace KiCadDoxer
             }
         }
 
+        public Task<string> ETag
+        {
+            get
+            {
+                // Could check the reader is created first, normally it should be. But it is not a
+                // strict requirement - you just end up waiting long if it isn't. :)
+                return etagCompletionSource.Task;
+            }
+        }
+
+        public string Path => uri.ToString();
+
         public async Task<TextReader> CreateReader(Uri uri)
         {
-            HttpClient client = new HttpClient();
-            toDispose.Add(client);
+            if (readerCreated)
+            {
+                throw new NotSupportedException("The reader can't be created twice.");
+            }
 
-            Stream stream = await client.GetStreamAsync(uri);
-            toDispose.Add(stream);
+            readerCreated = true;
+            try
+            {
+                HttpClient client = new HttpClient();
+                toDispose.Add(client);
 
-            StreamReader sr = new StreamReader(stream);
-            toDispose.Add(sr);
+                var response = await client.GetAsync(uri);
+                toDispose.Add(response);
 
-            return sr;
+                if (redirectCodes.Contains(response.StatusCode))
+                {
+                    redirectSet.Add(uri);
+
+                    Uri newUri = response.Headers.Location;
+                    if (newUri != null && !redirectSet.Contains(newUri) && redirectSet.Count < 20)
+                    {
+                        response.Dispose();
+                        toDispose.Remove(response);
+
+                        return await CreateReader(newUri);
+                    }
+                }
+
+                string etag = response.Headers.ETag?.Tag;
+                if (string.IsNullOrEmpty(etag))
+                {
+                    IEnumerable<string> lastModifiedValues;
+                    if (response.Headers.TryGetValues("Last-Modified", out lastModifiedValues))
+                    {
+                        string lastModified = lastModifiedValues.FirstOrDefault();
+                        if (!string.IsNullOrEmpty(lastModified))
+                        {
+                            etag = $"\"{lastModified}\"";
+                        }
+                    }
+                }
+                etagCompletionSource.TrySetResult(etag);
+
+                Stream stream;
+                try
+                {
+                    stream = await response.Content.ReadAsStreamAsync();
+                    toDispose.Add(stream);
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Sorry about this mess. OF COURSE this code needs to be refactored so I do not
+                    // get an exception if the request terminates as soon as the header is known.
+                    // Unfortuately I live in something called "the real world" where my time is
+                    // extremely valuable, so if this is what makes it work, it will have to do
+                    // - then I can fix it if I get so lucky that this is the biggest problem I have :)
+                    throw new TaskCanceledException();
+                }
+
+                StreamReader sr = new StreamReader(stream);
+                toDispose.Add(sr);
+
+                return sr;
+            }
+            catch (Exception ex)
+            {
+                etagCompletionSource.TrySetException(ex);
+                throw;
+            }
         }
 
         public async Task<string> Peek()
@@ -178,8 +255,6 @@ namespace KiCadDoxer
             return result;
         }
 
-        public string Path => uri.ToString();
-
         #region IDisposable Support
 
         private bool disposedValue = false; // To detect redundant calls
@@ -194,6 +269,20 @@ namespace KiCadDoxer
         {
             if (!disposedValue)
             {
+                if (!readerCreated)
+                {
+                    try
+                    {
+                        // Hmm, is there a way to ensure an exception has a valid stack trace without
+                        // actually throwing it?
+                        throw new ObjectDisposedException("LineSource", "The LineSource was disposed without creating a reader that can supply the ETag.");
+                    }
+                    catch (ObjectDisposedException ex)
+                    {
+                        etagCompletionSource.TrySetException(ex);
+                    }
+                }
+
                 disposedValue = true;
                 foreach (var disposable in toDispose)
                 {

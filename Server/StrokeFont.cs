@@ -197,6 +197,11 @@ namespace KiCadDoxer
             await svgWriter.WriteEndElementAsync("g");
         }
 
+        public static Task EnsureFontIsLoaded()
+        {
+            return fontDataLoader.Value;
+        }
+
         private static IEnumerable<(char character, bool overbar)> DecodeString(string text)
         {
             bool includeNextTilde = false;

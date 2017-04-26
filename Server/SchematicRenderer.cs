@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace KiCadDoxer
@@ -13,30 +16,32 @@ namespace KiCadDoxer
     public class SchematicRenderer
     {
         private const int TxtMargin = 4;
+
+        // Using the file date instead of version number so I do not need a build system messing with
+        // the assembly version.
+        private static readonly string assemblyFileDate = GetAssemblyFileDateString();
+
+        private static readonly Regex etagRegex = new Regex("^\\s*(?<weak>W\\/)?\"(?<etag>.+)\"\\s*$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
         private Task<LineSource> cacheLibraryLineSourceTask;
         private List<ComponentPlacement> componentPlacements = new List<ComponentPlacement>();
+        private bool isInitialized = false;
         private HashSet<string> knownMultiUnitComponent = new HashSet<string>();
         private LineSource lineSource;
         private HashSet<(int, int)> noConnectPositions = new HashSet<(int, int)>();
         private HashSet<(int, int)> wirePositions = new HashSet<(int, int)>();
-        private SvgWriter SvgWriter => KiCadDoxer.SvgWriter.Current;
+
+        private SvgWriter SvgWriter => SvgWriter.Current;
 
         public async Task HandleSchematic(SchematicRenderSettings renderSettings)
         {
             using (lineSource = await renderSettings.CreateLineSource())
             {
-                using (var writer = await SvgWriter.CreateAndSetCurrentSvgWriter(renderSettings))
+                // A peek to get any error as early as possible
+                await lineSource.Peek();
+                using (var writer = new SvgWriter(renderSettings))
                 {
                     try
                     {
-                        SvgWriter.SetCurrent(writer);
-                        await SvgWriter.WriteStartElementAsync("svg");
-                        await SvgWriter.WriteAttributeStringAsync("stroke-linecap", "round");
-                        await SvgWriter.WriteAttributeStringAsync("stroke-linejoin", "round");
-                        await SvgWriter.WriteAttributeStringAsync("stroke-width", renderSettings.DefaultStrokeWidth);
-                        await SvgWriter.WriteAttributeStringAsync("fill", "none");
-                        await SvgWriter.WriteAttributeStringAsync("class", "kicad schematics");
-
                         string line;
                         ComponentPlacement currentComponentPlacement = null;
 
@@ -142,6 +147,12 @@ namespace KiCadDoxer
                             }
                             else if (line.StartsWith("$Descr"))
                             {
+                                // Point of no return - we need to start the rendering at this point
+                                if (await HandleETagHeaders())
+                                {
+                                    return; // Done - NotModified returned to the caller!
+                                }
+                                await InitializeRendering();
                                 await HandleDescription();
                             }
                             else if (line.StartsWith("Wire"))
@@ -194,6 +205,20 @@ namespace KiCadDoxer
             }
         }
 
+        private static string GetAssemblyFileDateString()
+        {
+            string location = typeof(SchematicRenderer).GetTypeInfo().Assembly.Location;
+
+            if (string.IsNullOrEmpty(location))
+            {
+                return null;
+            }
+
+            // Hmm, no async call... OK, since we cache it I'll et them get away with it and won't
+            // branch the .NET core source
+            return File.GetLastWriteTimeUtc(location).ToString("yyyyMMddHHmmssffff", CultureInfo.InvariantCulture);
+        }
+
         // Lifted from https://github.com/KiCad/kicad-source-mirror/blob/master/common/drawtxt.cpp
         private double ClampTextPenSize(double aPenSize, double aSize, bool aBold)
         {
@@ -207,6 +232,56 @@ namespace KiCadDoxer
             }
 
             return penSize;
+        }
+
+        private async Task<string> CreateETagHeaderValue()
+        {
+            if (string.IsNullOrEmpty(assemblyFileDate))
+            {
+                // For unknown reasons we do not have the file date of the renderer - so we can't set
+                // etag headers as we would not notice a new deploy of KiCadDoxer
+                return null;
+            }
+
+            string etagHeader = await lineSource.ETag;
+            if (string.IsNullOrEmpty(etagHeader))
+            {
+                return null;
+            }
+
+            // Weak etags are OK for rendering purpos, so simply ignore the header.
+            Match m = etagRegex.Match(etagHeader);
+            if (!m.Success)
+            {
+                return null;
+            }
+
+            string etag = m.Groups["etag"].Value;
+
+            // Hmm, copy paste modify code reuse... oops:)
+
+            if (cacheLibraryLineSourceTask != null)
+            {
+                etagHeader = await (await cacheLibraryLineSourceTask).ETag;
+
+                if (string.IsNullOrEmpty(etagHeader))
+                {
+                    return null;
+                }
+
+                m = etagRegex.Match(etagHeader);
+                if (!m.Success)
+                {
+                    return null;
+                }
+
+                // The separator is not 100% bullet proof - but it raises the risk of collisions from
+                // EXTREMELY unlikely to VERY EXTREMELY unlikely... and makes it easer to see what is
+                // going on :)
+                etag += @"_\|/_" + m.Groups["etag"].Value;
+            }
+
+            return $"\"{etag}_\\|/_{assemblyFileDate}\"";
         }
 
         // lifted from https://github.com/KiCad/kicad-source-mirror/blob/master/eeschema/sch_text.cpp (SCH_HIERLABEL::GetSchematicTextOffset)
@@ -1038,6 +1113,31 @@ namespace KiCadDoxer
             await SvgWriter.WriteAttributeStringAsync("viewBox", $"0 0 {tokens[2]} {tokens[3]}");
         }
 
+        private async Task<bool> HandleETagHeaders()
+        {
+            // Bad naming or architecture (probably both). Returning true means rendering is no
+            // longer needed - we returned NotModified or something similar
+            string etagHeaderValue = await CreateETagHeaderValue();
+
+            if (string.IsNullOrEmpty(etagHeaderValue))
+            {
+                return false;
+            }
+
+            bool handled = false;
+
+            if (etagHeaderValue == SvgWriter.RenderSettings.GetRequestETagHeaderValue())
+            {
+                handled = await SvgWriter.RenderSettings.HandleMatchingETags();
+            }
+            else
+            {
+                SvgWriter.RenderSettings.SetResponseEtagHeaderValue(etagHeaderValue);
+            }
+
+            return handled;
+        }
+
         private async Task HandleLibraryReference()
         {
             string line = await lineSource.Read();
@@ -1046,6 +1146,7 @@ namespace KiCadDoxer
                 cacheLibraryLineSourceTask = SvgWriter.RenderSettings.CreateLibraryLineSource(line.Substring(5) + ".lib"); // Remove LIBS:
             }
         }
+
         private async Task HandleNoConnection()
         {
             var tokens = await lineSource.ReadTokensNotEof();
@@ -1075,11 +1176,96 @@ namespace KiCadDoxer
             await SvgWriter.WriteEndElementAsync("g");
         }
 
+        private async Task HandleSheet()
+        {
+            await SvgWriter.WriteStartElementAsync("g");
+            await SvgWriter.WriteAttributeStringAsync("class", "sheet");
+
+            Token[] tokens = null;
+            int x = 0, y = 0, width = 0, height = 0;
+            while ((tokens = await lineSource.ReadTokensNotEof()).FirstOrDefault() != "$EndSheet")
+            {
+                if (tokens[0] == "S")
+                {
+                    x = tokens[1];
+                    y = tokens[2];
+                    width = tokens[3];
+                    height = tokens[4];
+
+                    await SvgWriter.WriteStartElementAsync("rect");
+                    await SvgWriter.WriteAttributeStringAsync("x", x);
+                    await SvgWriter.WriteAttributeStringAsync("y", y);
+                    await SvgWriter.WriteAttributeStringAsync("width", width);
+                    await SvgWriter.WriteAttributeStringAsync("height", height);
+                    await SvgWriter.WriteAttributeStringAsync("stroke", "rgb(132,0,132)");
+                    await SvgWriter.WriteEndElementAsync("rect");
+                }
+                else if (tokens[0] == "F0")
+                {
+                    await StrokeFont.DrawText("Sheet: " + tokens[1], x, y + GetSchematicTextOffset(SvgWriter.RenderSettings.DefaultStrokeWidth, 0).Y, tokens[2], "rgb(0,132,132)", 0, false, false, 0, TextHorizontalJustify.Left, TextVerticalJustify.Bottom, "sheet-name");
+                }
+                else if (tokens[0] == "F1")
+                {
+                    await StrokeFont.DrawText("File: " + tokens[1], x, y + height - GetSchematicTextOffset(SvgWriter.RenderSettings.DefaultStrokeWidth, 0).Y, tokens[2], "rgb(132,132,0)", 0, false, false, 0, TextHorizontalJustify.Left, TextVerticalJustify.Top, "file-name");
+                }
+                else if (tokens[0][0] == 'F')
+                {
+                    // token 2 is I for Input or O for Out. No idea why they can't be bidi or three
+                    // state... oh well, not my problem.
+
+                    // Notice the shape is "swapped" for correct rendering using the same code as the HLabel
+                    PinSheetLabelShape shape;
+                    switch ((string)tokens[2])
+                    {
+                        case "I":
+                            shape = PinSheetLabelShape.Output;
+                            break;
+
+                        case "O":
+                            shape = PinSheetLabelShape.Input;
+                            break;
+
+                        default:
+                            shape = PinSheetLabelShape.Unspecified;
+
+                            // TODO: Log to application insights
+                            await SvgWriter.WriteCommentAsync($"Unknown sheet label form: {tokens[2]} at line {lineSource.CurrentLineNumber} in {lineSource.Path}");
+                            break;
+                    }
+                    int orientation;
+
+                    // The docs I am reading do not mention top/bottom, even though it is clearly
+                    // possible by rotating a sheet - to be investigated
+                    switch ((string)tokens[3])
+                    {
+                        case "R":
+                            orientation = 0;
+                            break;
+
+                        case "L":
+                            orientation = 2;
+                            break;
+
+                        default:
+
+                            // TODO: Log to application insights
+                            await SvgWriter.WriteCommentAsync($"Unknown sheet label orientation: {tokens[3]} at line {lineSource.CurrentLineNumber} in {lineSource.Path}");
+                            orientation = 0;
+                            break;
+                    }
+
+                    await HandleText(TextType.HLabel, tokens[1], tokens[4], tokens[5], orientation, tokens[6], shape);
+                }
+            }
+
+            await SvgWriter.WriteEndElementAsync("g");
+        }
+
         private async Task HandleText()
         {
             // Text and label fields are NASTY, with the number of spaces between tokens being
-            // significent in the original source code. Currently I ignore this, as the docs
-            // show all the supported text types having the same actual fields...
+            // significent in the original source code. Currently I ignore this, as the docs show all
+            // the supported text types having the same actual fields...
 
             var tokens = await lineSource.ReadTokensNotEof();
             string text = await lineSource.ReadNotEof();
@@ -1105,7 +1291,7 @@ namespace KiCadDoxer
 
         private async Task HandleText(TextType type, string text, double x, double y, int orientation, double size, string shapeKey)
         {
-            PinSheetLabelShape? shape = null; 
+            PinSheetLabelShape? shape = null;
 
             if (Enum.TryParse(shapeKey, out PinSheetLabelShape parsedShape))
             {
@@ -1121,9 +1307,8 @@ namespace KiCadDoxer
             // significent. Currently I ignore this, expecting to know which values are present based
             // on the text type... but this might have to change.
 
-            // Consider refactoring to a class hierarchy like the KiCad source has it (though
-            // they still stuff it in one file...)
-
+            // Consider refactoring to a class hierarchy like the KiCad source has it (though they
+            // still stuff it in one file...)
 
             double strokeWidth = SvgWriter.RenderSettings.DefaultStrokeWidth;
             bool isBold = false;
@@ -1132,7 +1317,6 @@ namespace KiCadDoxer
             TextHorizontalJustify horizontalJustify = TextHorizontalJustify.Left;
             TextVerticalJustify verticalJustify = TextVerticalJustify.Bottom;
 
-
             (double X, double Y) textOffset = GetSchematicTextOffset(strokeWidth, orientation);
 
             switch (type)
@@ -1140,12 +1324,15 @@ namespace KiCadDoxer
                 case TextType.Notes:
                     stroke = "rgb(0,0,132)";
                     break;
+
                 case TextType.Label:
                     stroke = "rgb(0,0,0)";
                     break;
 
                 case TextType.HLabel:
-                    // TODO: Token[7] can contain "Italic" - I wrote in a comment, but I forgot to write where I found this information - probably the source code of KiCad!
+
+                    // TODO: Token[7] can contain "Italic" - I wrote in a comment, but I forgot to
+                    //       write where I found this information - probably the source code of KiCad!
                     stroke = "rgb(132,132,0)";
                     textOffset = GetSchematicTextOffsetHLabel(strokeWidth, size, orientation);
                     verticalJustify = TextVerticalJustify.Center;
@@ -1178,13 +1365,15 @@ namespace KiCadDoxer
                     angle = 180;
                     swapVertical = true;
                     break;
+
                 case 3:
                     swapVertical = true;
                     angle = 90;
                     break;
             }
 
-            // TODO: Is this really needed, or is there a problem in DrawText's handling of vertical alignment? I thought it would do any swapping needed.
+            // TODO: Is this really needed, or is there a problem in DrawText's handling of vertical
+            //       alignment? I thought it would do any swapping needed.
             if (swapVertical && verticalJustify != TextVerticalJustify.Center)
             {
                 verticalJustify = verticalJustify == TextVerticalJustify.Bottom ? TextVerticalJustify.Top : TextVerticalJustify.Bottom;
@@ -1242,81 +1431,33 @@ namespace KiCadDoxer
             wirePositions.Add((lineDef[2], lineDef[3]));
         }
 
-        private async Task HandleSheet()
+        private async Task InitializeRendering()
         {
-            await SvgWriter.WriteStartElementAsync("g");
-            await SvgWriter.WriteAttributeStringAsync("class", "sheet");
-
-            Token[] tokens = null;
-            int x = 0, y = 0, width = 0, height = 0;
-            while ((tokens = await lineSource.ReadTokensNotEof()).FirstOrDefault() != "$EndSheet")
+            if (isInitialized)
             {
-                if (tokens[0] == "S")
-                {
-                    x = tokens[1];
-                    y = tokens[2];
-                    width = tokens[3];
-                    height = tokens[4];
-
-                    await SvgWriter.WriteStartElementAsync("rect");
-                    await SvgWriter.WriteAttributeStringAsync("x", x);
-                    await SvgWriter.WriteAttributeStringAsync("y", y);
-                    await SvgWriter.WriteAttributeStringAsync("width", width);
-                    await SvgWriter.WriteAttributeStringAsync("height", height);
-                    await SvgWriter.WriteAttributeStringAsync("stroke", "rgb(132,0,132)");
-                    await SvgWriter.WriteEndElementAsync("rect");
-                }
-                else if (tokens[0] == "F0")
-                {
-                    await StrokeFont.DrawText("Sheet: " + tokens[1], x, y + GetSchematicTextOffset(SvgWriter.RenderSettings.DefaultStrokeWidth, 0).Y, tokens[2], "rgb(0,132,132)", 0, false, false, 0, TextHorizontalJustify.Left, TextVerticalJustify.Bottom, "sheet-name");
-                }
-                else if (tokens[0] == "F1")
-                {
-                    await StrokeFont.DrawText("File: " + tokens[1], x, y + height - GetSchematicTextOffset(SvgWriter.RenderSettings.DefaultStrokeWidth, 0).Y, tokens[2], "rgb(132,132,0)", 0, false, false, 0, TextHorizontalJustify.Left, TextVerticalJustify.Top, "file-name");
-                }
-                else if (tokens[0][0] == 'F')
-                {
-                    // token 2 is I for Input or O for Out. No idea why they can't be bidi or three state... oh well, not my problem.
-
-                    // Notice the shape is "swapped" for correct rendering using the same code as the HLabel
-                    PinSheetLabelShape shape;
-                    switch ((string)tokens[2])
-                    {
-                        case "I":
-                            shape = PinSheetLabelShape.Output;
-                            break;
-                        case "O":
-                            shape = PinSheetLabelShape.Input;
-                            break;
-                        default:
-                            shape = PinSheetLabelShape.Unspecified;
-
-                            // TODO: Log to application insights
-                            await SvgWriter.WriteCommentAsync($"Unknown sheet label form: {tokens[2]} at line {lineSource.CurrentLineNumber} in {lineSource.Path}");
-                            break;
-                    }
-                    int orientation;
-                    // The docs I am reading do not mention top/bottom, even though it is clearly possible by rotating a sheet - to be investigated
-                    switch ((string)tokens[3])
-                    {
-                        case "R":
-                            orientation = 0;
-                            break;
-                        case "L":
-                            orientation = 2;
-                            break;
-                        default:
-                            // TODO: Log to application insights
-                            await SvgWriter.WriteCommentAsync($"Unknown sheet label orientation: {tokens[3]} at line {lineSource.CurrentLineNumber} in {lineSource.Path}");
-                            orientation = 0;
-                            break;
-                    }
-
-                    await HandleText(TextType.HLabel, tokens[1], tokens[4], tokens[5], orientation, tokens[6], shape);
-                }
+                return;
             }
 
-            await SvgWriter.WriteEndElementAsync("g");
+            isInitialized = true;
+
+            // Ensure the font is available - a few schematics might not need it, but that would be
+            // few so not worth the improved error messages to wait for them.
+            await StrokeFont.EnsureFontIsLoaded();
+
+            if (cacheLibraryLineSourceTask != null)
+            {
+                // Ensure any exceptions are thrown before we start rendering so error results can
+                // still be generated
+                await (await cacheLibraryLineSourceTask).Peek();
+            }
+
+            // Start writing at this point, so XML response headers can no longer be modified
+            await SvgWriter.WriteStartElementAsync("svg");
+            await SvgWriter.WriteAttributeStringAsync("stroke-linecap", "round");
+            await SvgWriter.WriteAttributeStringAsync("stroke-linejoin", "round");
+            await SvgWriter.WriteAttributeStringAsync("stroke-width", SvgWriter.Current.RenderSettings.DefaultStrokeWidth);
+            await SvgWriter.WriteAttributeStringAsync("fill", "none");
+            await SvgWriter.WriteAttributeStringAsync("class", "kicad schematics");
         }
 
         #region LabelTemplates
@@ -1344,6 +1485,7 @@ namespace KiCadDoxer
         private static int[] TemplateOUT_HI = { 6, 2, 0, 1, -1, 0, -1, 0, 1, 1, 1, 2, 0 };
         private static int[] TemplateOUT_HN = { 6, -2, 0, -1, 1, 0, 1, 0, -1, -1, -1, -2, 0 };
         private static int[] TemplateOUT_UP = { 6, 0, -2, 1, -1, 1, 0, -1, 0, -1, -1, 0, -2 };
+
         private static int[][][] TemplateShape = new int[][][]{
             new int[][] { TemplateIN_HN,     TemplateIN_UP,     TemplateIN_HI,     TemplateIN_BOTTOM     },
             new int[][] { TemplateOUT_HN,    TemplateOUT_UP,    TemplateOUT_HI,    TemplateOUT_BOTTOM    },
@@ -1355,6 +1497,7 @@ namespace KiCadDoxer
         private static int[] TemplateUNSPC_HI = { 5, 0, -1, 2, -1, 2, 1, 0, 1, 0, -1 };
         private static int[] TemplateUNSPC_HN = { 5, 0, -1, -2, -1, -2, 1, 0, 1, 0, -1 };
         private static int[] TemplateUNSPC_UP = { 5, 1, 0, 1, -2, -1, -2, -1, 0, 1, 0 };
+
         private enum PinSheetLabelShape
         {
             Input,
@@ -1365,6 +1508,7 @@ namespace KiCadDoxer
         }
 
         #endregion LabelTemplates
+
         private class ComponentPlacement
         {
             public ComponentPlacement()
@@ -1398,6 +1542,7 @@ namespace KiCadDoxer
             public bool Rendered { get; set; }
 
             public int UnitIndex { get; set; } = 1;
+
             public override string ToString()
             {
                 return $"Comp({Reference}:{Name})";

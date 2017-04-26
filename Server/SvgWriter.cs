@@ -13,42 +13,46 @@ namespace KiCadDoxer
         private const string SvgNs = "http://www.w3.org/2000/svg";
         private static AsyncLocal<SvgWriter> current = new AsyncLocal<SvgWriter>();
         private Stack<ElementStackEntry> stack = new Stack<ElementStackEntry>();
-        private XmlWriter xmlWriter;
-        private SvgWriter(SchematicRenderSettings renderSettings, XmlWriter xmlWriter)
+        private Lazy<Task<XmlWriter>> xmlWriterCreator;
+
+        public SvgWriter(SchematicRenderSettings renderSettings)
         {
-            this.xmlWriter = xmlWriter;
-            this.RenderSettings = renderSettings;
-        }
+            if (current.Value != null)
+            {
+                throw new NotSupportedException("The current SvgWriter can't be changed once it is created in a sync call context");
+            }
 
-        public static SvgWriter Current => current.Value;
-
-        public SchematicRenderSettings RenderSettings { get; }
-
-        public static async Task<SvgWriter> CreateAndSetCurrentSvgWriter(SchematicRenderSettings renderSettings)
-        {
             XmlWriterSettings xmlWriterSettings = new XmlWriterSettings
             {
                 Async = true,
                 Indent = renderSettings.PrettyPrint
             };
 
-            XmlWriter xmlWriter = XmlWriter.Create(await renderSettings.CreateOutputWriter(), xmlWriterSettings);
+            this.xmlWriterCreator = new Lazy<Task<XmlWriter>>(async () => XmlWriter.Create(await renderSettings.CreateOutputWriter(), xmlWriterSettings));
+            this.RenderSettings = renderSettings;
+            current.Value = this;
+        }
 
-            return new SvgWriter(renderSettings, xmlWriter);
-        }
-        public static void SetCurrent(SvgWriter svgWriter)
-        {
-            current.Value = svgWriter;
-        }
+        public static SvgWriter Current => current.Value;
+
+        public SchematicRenderSettings RenderSettings { get; }
 
         public void Dispose()
         {
-            xmlWriter.Dispose();
+            if (xmlWriterCreator.IsValueCreated)
+            {
+                //Hmm, is this always safe? Come on microsoft, we need async disposable now!!
+                xmlWriterCreator.Value.Result.Dispose();
+            }
         }
 
-        public Task FlushAsync()
+        public async Task FlushAsync()
         {
-            return xmlWriter.FlushAsync();
+            if (xmlWriterCreator.IsValueCreated)
+            {
+                var xmlWriter = await xmlWriterCreator.Value;
+                await xmlWriter.FlushAsync();
+            }
         }
 
         public Task WriteAttributeStringAsync(string name, int value)
@@ -81,17 +85,20 @@ namespace KiCadDoxer
 
             if (stack.Peek().SetInheritedAttribute(name, value))
             {
+                var xmlWriter = await xmlWriterCreator.Value;
                 await xmlWriter.WriteAttributeStringAsync(null, name, null, value);
             }
         }
 
-        public Task WriteCommentAsync(string comment)
+        public async Task WriteCommentAsync(string comment)
         {
-            return xmlWriter.WriteCommentAsync(comment);
+            var xmlWriter = await xmlWriterCreator.Value;
+            await xmlWriter.WriteCommentAsync(comment);
         }
 
         public async Task WriteEndElementAsync(string name)
         {
+            var xmlWriter = await xmlWriterCreator.Value;
             await xmlWriter.WriteEndElementAsync();
             var entry = stack.Pop();
             if (entry.Name != name)
@@ -102,6 +109,7 @@ namespace KiCadDoxer
 
         public async Task WriteStartElementAsync(string name)
         {
+            var xmlWriter = await xmlWriterCreator.Value;
             var parent = stack.PeekOrDefault();
             await xmlWriter.WriteStartElementAsync(null, name, SvgNs);
 
@@ -112,6 +120,7 @@ namespace KiCadDoxer
 
             stack.Push(new ElementStackEntry(parent, name));
         }
+
         public class ElementStackEntry
         {
             private Dictionary<string, string> attributeValues;

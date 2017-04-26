@@ -3,6 +3,7 @@ using System;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -13,6 +14,7 @@ namespace KiCadDoxer
         private static readonly string[] boolTrueStrings = new[] { "y", "yes", "1", "t", "true" };
         private HttpContext context;
         private Uri uri;
+
         public SchematicRenderSettingsHttpRequest(HttpContext context)
         {
             this.context = context;
@@ -34,6 +36,7 @@ namespace KiCadDoxer
             }
 
             string scheme = uri.Scheme.ToLowerInvariant();
+
             // Stop attempts at file:// - I hope!
             if (scheme != "http" && scheme != "https")
             {
@@ -55,6 +58,9 @@ namespace KiCadDoxer
             base.AddClasses = boolTrueStrings.Contains(((string)request.Query["classes"] ?? string.Empty).ToLowerInvariant());
 
             context.Response.ContentType = "image/svg+xml";
+
+            // A default value that will hopefully be replaced by an etag value
+            context.Response.Headers["Cache-Control"] = "max-age=30";
         }
 
         public static bool CanHandleContext(HttpContext context)
@@ -79,13 +85,12 @@ namespace KiCadDoxer
             }
             catch (UriFormatException)
             {
-                // TODO: Send exception to intellitrace - and it would also be nice to see it logged if no other middleware takes the request!
+                // TODO: Send exception to intellitrace - and it would also be nice to see it logged
+                //       if no other middleware takes the request!
             }
 
             return false;
         }
-
-
 
         public override Task<LineSource> CreateLibraryLineSource(string libraryName)
         {
@@ -99,7 +104,27 @@ namespace KiCadDoxer
 
         public override Task<LineSource> CreateLineSource() => Task.FromResult(new LineSource(uri));
 
+        // It would probably be better to have a specific class instead of the generic TextWriter -
+        // then the methods to deal with etags etc can be moved to it, as they are NOT SETTINGS!
         public override Task<TextWriter> CreateOutputWriter() => Task.FromResult((TextWriter)new StreamWriter(this.context.Response.Body, Encoding.UTF8));
+
+        public override string GetRequestETagHeaderValue()
+        {
+            return context.Request.Headers["If-None-Match"];
+        }
+
+        public override Task<bool> HandleMatchingETags()
+        {
+            context.Response.StatusCode = (int)HttpStatusCode.NotModified;
+            return Task.FromResult(true);
+        }
+
+        public override void SetResponseEtagHeaderValue(string etag)
+        {
+            context.Response.Headers["Cache-Control"] = "must-revalidate";
+            context.Response.Headers["ETag"] = etag;
+            base.SetResponseEtagHeaderValue(etag);
+        }
 
         public override ComponentFieldRenderMode ShowComponentField(int fieldIndex)
         {

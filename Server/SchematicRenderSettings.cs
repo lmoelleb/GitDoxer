@@ -21,7 +21,20 @@ namespace KiCadDoxer
         public abstract Task<LineSource> CreateLibraryLineSource(string libraryName);
 
         public abstract Task<LineSource> CreateLineSource();
+
         public abstract Task<TextWriter> CreateOutputWriter();
+
+        // Could be a property, but I like it looks a bit "symetric" with SetResponseETag
+        public virtual string GetRequestETagHeaderValue() => string.Empty;
+
+        public virtual Task<bool> HandleMatchingETags()
+        {
+            return Task.FromResult(false);
+        }
+
+        public virtual void SetResponseEtagHeaderValue(string etag)
+        {
+        }
 
         public virtual ComponentFieldRenderMode ShowComponentField(int fieldIndex)
         {
