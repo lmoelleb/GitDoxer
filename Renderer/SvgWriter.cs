@@ -28,7 +28,7 @@ namespace KiCadDoxer.Renderer
                 Indent = renderSettings.PrettyPrint
             };
 
-            this.xmlWriterCreator = new Lazy<Task<XmlWriter>>(async () => XmlWriter.Create(await renderSettings.CreateOutputWriter(), xmlWriterSettings));
+            this.xmlWriterCreator = new Lazy<Task<XmlWriter>>(async () => XmlWriter.Create(await renderSettings.CreateOutputWriter(renderSettings.CancellationToken), xmlWriterSettings));
             this.RenderSettings = renderSettings;
             current.Value = this;
         }

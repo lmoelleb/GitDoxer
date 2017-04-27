@@ -1,51 +1,31 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Net.Http;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace KiCadDoxer.Renderer
 {
-    public class LineSource : IDisposable
+    public abstract class LineSource : IDisposable
     {
-        private TaskCompletionSource<string> etagCompletionSource = new TaskCompletionSource<string>();
+        private CancellationTokenSource combinedCancellationTokenSource;
+        private CancellationTokenSource disposedCancellationTokenSource = new CancellationTokenSource();
+        private Lazy<Task<string>> etagTask;
         private int lineNumber;
 
-        // TODO: Make a base LineSource and an HTTP specific subclass to allow reading from files etc
-        // - just like the render settings do.
-        // TOTO: Refeactor to read tokens one by one instead of being line based. This will allow
-        //       awaiting reading next token and get me out of the token index hell I have
         private string peekedLine;
 
         private bool readerCreated = false;
-        private Task<TextReader> readerTask;
-        private HashSet<Uri> redirectSet = new HashSet<Uri>();
+        private Lazy<Task<TextReader>> readerTask;
         private List<IDisposable> toDispose = new List<IDisposable>();
-        private Uri uri;
 
-        public LineSource(Uri uri)
+        public LineSource(CancellationToken cancellationToken)
         {
-            this.uri = uri;
-            try
-            {
-                readerTask = CreateReader(uri);
-            }
-            catch
-            {
-                foreach (var disposable in toDispose)
-                {
-                    disposable.Dispose();
-                }
-
-                throw;
-            }
-        }
-
-        public LineSource(TextReader reader)
-        {
-            this.readerTask = Task.FromResult(reader);
+            combinedCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(disposedCancellationTokenSource.Token, cancellationToken);
+            etagTask = new Lazy<Task<string>>(() => GetETag(combinedCancellationTokenSource.Token));
+            readerTask = new Lazy<Task<TextReader>>(() => CreateReader(combinedCancellationTokenSource.Token));
+            toDispose.Add(combinedCancellationTokenSource);
         }
 
         public int CurrentLineNumber
@@ -56,82 +36,15 @@ namespace KiCadDoxer.Renderer
             }
         }
 
-        public Task<string> ETag
-        {
-            get
-            {
-                // Could check the reader is created first, normally it should be. But it is not a
-                // strict requirement - you just end up waiting long if it isn't. :)
-                return etagCompletionSource.Task;
-            }
-        }
+        public Task<string> ETag => etagTask.Value;
 
-        public string Path => uri.ToString();
-
-        public async Task<TextReader> CreateReader(Uri uri)
-        {
-            if (readerCreated)
-            {
-                throw new NotSupportedException("The reader can't be created twice.");
-            }
-
-            readerCreated = true;
-            try
-            {
-                HttpClient client = new HttpClient();
-                toDispose.Add(client);
-
-                var response = await client.GetAsync(uri);
-                toDispose.Add(response);
-
-                string etag = response.Headers.ETag?.Tag;
-                if (string.IsNullOrEmpty(etag))
-                {
-                    IEnumerable<string> lastModifiedValues;
-                    if (response.Headers.TryGetValues("Last-Modified", out lastModifiedValues))
-                    {
-                        string lastModified = lastModifiedValues.FirstOrDefault();
-                        if (!string.IsNullOrEmpty(lastModified))
-                        {
-                            etag = $"\"{lastModified}\"";
-                        }
-                    }
-                }
-                etagCompletionSource.TrySetResult(etag);
-
-                Stream stream;
-                try
-                {
-                    stream = await response.Content.ReadAsStreamAsync();
-                    toDispose.Add(stream);
-                }
-                catch (ObjectDisposedException)
-                {
-                    // Sorry about this mess. OF COURSE this code needs to be refactored so I do not
-                    // get an exception if the request terminates as soon as the header is known.
-                    // Unfortuately I live in something called "the real world" where my time is
-                    // extremely valuable, so if this is what makes it work, it will have to do
-                    // - then I can fix it if I get so lucky that this is the biggest problem I have :)
-                    throw new TaskCanceledException();
-                }
-
-                StreamReader sr = new StreamReader(stream);
-                toDispose.Add(sr);
-
-                return sr;
-            }
-            catch (Exception ex)
-            {
-                etagCompletionSource.TrySetException(ex);
-                throw;
-            }
-        }
+        public abstract string Path { get; }
 
         public async Task<string> Peek()
         {
             if (peekedLine == null)
             {
-                var reader = await readerTask;
+                var reader = await readerTask.Value;
 
                 // At the end of the file, multiple peeks will give multiple ReadLineAsync... I can
                 // live with that :)
@@ -157,7 +70,7 @@ namespace KiCadDoxer.Renderer
             string result = await Read();
             if (result == null)
             {
-                throw new FormatException($"Unexpected End of File on line {lineNumber} in {uri}");
+                throw new FormatException($"Unexpected End of File on line {lineNumber} in {Path}");
             }
 
             return result;
@@ -208,7 +121,7 @@ namespace KiCadDoxer.Renderer
                         {
                             if (current.Length > 0 || emitEmptyString)
                             {
-                                result.Add(new Token(current.ToString(), lineNumber, charIndex, uri.ToString()));
+                                result.Add(new Token(current.ToString(), lineNumber, charIndex, Path));
                                 current.Length = 0;
                                 emitEmptyString = false;
                             }
@@ -222,7 +135,7 @@ namespace KiCadDoxer.Renderer
             }
             if (current.Length > 0 || emitEmptyString)
             {
-                result.Add(new Token(current.ToString(), lineNumber, charIndex, uri.ToString()));
+                result.Add(new Token(current.ToString(), lineNumber, charIndex, Path));
             }
 
             return result.ToArray();
@@ -233,10 +146,22 @@ namespace KiCadDoxer.Renderer
             var result = await ReadTokens();
             if (result == null)
             {
-                throw new FormatException($"Unexpected End of File on line {lineNumber} in {uri}");
+                throw new FormatException($"Unexpected End of File on line {lineNumber} in {Path}");
             }
 
             return result;
+        }
+
+        protected abstract Task<TextReader> CreateReader(CancellationToken cancellationToken);
+
+        protected virtual Task<string> GetETag(CancellationToken cancellationToken)
+        {
+            return Task.FromResult<string>(null);
+        }
+
+        protected void RegisterForDisposal(IDisposable disposable)
+        {
+            toDispose.Add(disposable);
         }
 
         #region IDisposable Support
@@ -253,21 +178,9 @@ namespace KiCadDoxer.Renderer
         {
             if (!disposedValue)
             {
-                if (!readerCreated)
-                {
-                    try
-                    {
-                        // Hmm, is there a way to ensure an exception has a valid stack trace without
-                        // actually throwing it?
-                        throw new ObjectDisposedException("LineSource", "The LineSource was disposed without creating a reader that can supply the ETag.");
-                    }
-                    catch (ObjectDisposedException ex)
-                    {
-                        etagCompletionSource.TrySetException(ex);
-                    }
-                }
-
                 disposedValue = true;
+                disposedCancellationTokenSource.Cancel();
+
                 foreach (var disposable in toDispose)
                 {
                     disposable.Dispose();

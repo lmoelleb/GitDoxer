@@ -34,7 +34,8 @@ namespace KiCadDoxer.Renderer
 
         public async Task HandleSchematic(SchematicRenderSettings renderSettings)
         {
-            using (lineSource = await renderSettings.CreateLineSource())
+            var cancellationToken = renderSettings.CancellationToken;
+            using (lineSource = await renderSettings.CreateLineSource(cancellationToken))
             {
                 // A peek to get any error as early as possible
                 await lineSource.Peek();
@@ -56,6 +57,8 @@ namespace KiCadDoxer.Renderer
 
                         while ((line = await lineSource.Peek()) != null)
                         {
+                            cancellationToken.ThrowIfCancellationRequested();
+
                             if (currentComponentPlacement != null)
                             {
                                 var tokens = await lineSource.ReadTokensNotEof();
@@ -644,8 +647,11 @@ namespace KiCadDoxer.Renderer
         private async Task HandleComponentLibrary(LineSource libraryLineSource)
         {
             string line;
+            var cancellationToken = SvgWriter.Current.RenderSettings.CancellationToken;
             while ((line = await libraryLineSource.Peek()) != null)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 if (line.StartsWith("DEF"))
                 {
                     await HandleComponentFromLibrary(libraryLineSource);
@@ -1115,6 +1121,8 @@ namespace KiCadDoxer.Renderer
 
         private async Task<bool> HandleETagHeaders()
         {
+            var cancellationToken = SvgWriter.Current.RenderSettings.CancellationToken;
+
             // Bad naming or architecture (probably both). Returning true means rendering is no
             // longer needed - we returned NotModified or something similar
             string etagHeaderValue = await CreateETagHeaderValue();
@@ -1126,9 +1134,11 @@ namespace KiCadDoxer.Renderer
 
             bool handled = false;
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             if (etagHeaderValue == SvgWriter.RenderSettings.GetRequestETagHeaderValue())
             {
-                handled = await SvgWriter.RenderSettings.HandleMatchingETags();
+                handled = await SvgWriter.RenderSettings.HandleMatchingETags(cancellationToken);
             }
             else
             {
@@ -1140,10 +1150,13 @@ namespace KiCadDoxer.Renderer
 
         private async Task HandleLibraryReference()
         {
+            var cancellationToken = SvgWriter.Current.RenderSettings.CancellationToken;
+            cancellationToken.ThrowIfCancellationRequested();
             string line = await lineSource.Read();
+            cancellationToken.ThrowIfCancellationRequested();
             if (line.EndsWith("-cache"))
             {
-                cacheLibraryLineSourceTask = SvgWriter.RenderSettings.CreateLibraryLineSource(line.Substring(5) + ".lib"); // Remove LIBS:
+                cacheLibraryLineSourceTask = SvgWriter.RenderSettings.CreateLibraryLineSource(line.Substring(5) + ".lib", cancellationToken); // substring 5 removes LIBS:
             }
         }
 

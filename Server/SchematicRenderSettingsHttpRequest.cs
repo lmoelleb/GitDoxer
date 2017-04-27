@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace KiCadDoxer.Server
@@ -93,28 +94,28 @@ namespace KiCadDoxer.Server
             return false;
         }
 
-        public override Task<LineSource> CreateLibraryLineSource(string libraryName)
+        public override Task<LineSource> CreateLibraryLineSource(string libraryName, CancellationToken cancellationToken)
         {
             string path = new UriBuilder(uri) { Query = string.Empty }.ToString();
 
             // There should be a slash in a URL... if not... oh well
             path = path.Substring(0, path.LastIndexOf('/') + 1) + libraryName + uri.Query;
 
-            return Task.FromResult(new LineSource(new Uri(path)));
+            return Task.FromResult<LineSource>(new LineSourceHttp(new Uri(path), cancellationToken));
         }
 
-        public override Task<LineSource> CreateLineSource() => Task.FromResult(new LineSource(uri));
+        public override Task<LineSource> CreateLineSource(CancellationToken cancellationToken) => Task.FromResult<LineSource>(new LineSourceHttp(uri, cancellationToken));
 
         // It would probably be better to have a specific class instead of the generic TextWriter -
         // then the methods to deal with etags etc can be moved to it, as they are NOT SETTINGS!
-        public override Task<TextWriter> CreateOutputWriter() => Task.FromResult((TextWriter)new StreamWriter(this.context.Response.Body, Encoding.UTF8));
+        public override Task<TextWriter> CreateOutputWriter(CancellationToken cancellationToken) => Task.FromResult((TextWriter)new StreamWriter(this.context.Response.Body, Encoding.UTF8));
 
         public override string GetRequestETagHeaderValue()
         {
             return context.Request.Headers["If-None-Match"];
         }
 
-        public override Task<bool> HandleMatchingETags()
+        public override Task<bool> HandleMatchingETags(CancellationToken cancellationToken)
         {
             context.Response.StatusCode = (int)HttpStatusCode.NotModified;
             return Task.FromResult(true);
