@@ -6,20 +6,19 @@ namespace KiCadDoxer.Renderer
 {
     public abstract class SchematicRenderSettings
     {
-        public bool AddClasses { get; protected set; } = false;
+        public virtual bool AddClasses => false;
 
-        public bool AddXlinkToSheets { get; protected set; } = false;
+        public virtual bool AddXlinkToSheets => false;
 
         public virtual CancellationToken CancellationToken => CancellationToken.None;
 
-        // TODO: Should allow changing this
-        public double DefaultStrokeWidth => 6;
+        public virtual double DefaultStrokeWidth => 6;
 
-        public HiddenPinRenderMode HiddenPinRenderMode { get; set; }
+        public virtual HiddenPinRenderMode HiddenPinRenderMode => HiddenPinRenderMode.Hide;
 
-        public bool PrettyPrint { get; protected set; } = false;
+        public virtual bool PrettyPrint => false;
 
-        public bool ShowPinNumbers { get; protected set; } = true;
+        public virtual bool ShowPinNumbers => true;
 
         public abstract Task<LineSource> CreateLibraryLineSource(string libraryName, CancellationToken cancellationToken);
 

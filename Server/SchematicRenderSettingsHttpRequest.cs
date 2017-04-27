@@ -16,6 +16,13 @@ namespace KiCadDoxer.Server
         private static readonly string[] boolTrueStrings = new[] { "y", "yes", "1", "t", "true" };
         private HttpContext context;
         private Uri uri;
+        private HiddenPinRenderMode? hiddenPins;
+        bool showPinNumbers;
+        bool addXlinkToSheets;
+        bool prettyPrint;
+        bool addClasses;
+
+
 
         public SchematicRenderSettingsHttpRequest(HttpContext context)
         {
@@ -45,19 +52,19 @@ namespace KiCadDoxer.Server
                 throw new Exception("TODO: Return bad request response instead");
             }
 
-            HiddenPinRenderMode hiddenPins;
-            if (Enum.TryParse(request.Query["hiddenpins"], true, out hiddenPins))
+            HiddenPinRenderMode hiddenPinsRenderMode;
+            if (!Enum.TryParse(request.Query["hiddenpins"], true, out hiddenPinsRenderMode))
             {
-                base.HiddenPinRenderMode = hiddenPins;
+                hiddenPins = HiddenPinRenderMode;
             }
 
-            base.ShowPinNumbers = ((string)request.Query["pinnumbers"] ?? string.Empty).ToLowerInvariant() != "hidden";
+            showPinNumbers = ((string)request.Query["pinnumbers"] ?? string.Empty).ToLowerInvariant() != "hidden";
 
-            base.AddXlinkToSheets = boolTrueStrings.Contains(((string)request.Query["xlinksheets"] ?? string.Empty).ToLowerInvariant());
+            addXlinkToSheets = boolTrueStrings.Contains(((string)request.Query["xlinksheets"] ?? string.Empty).ToLowerInvariant());
 
-            base.PrettyPrint = boolTrueStrings.Contains(((string)request.Query["prettyprint"] ?? string.Empty).ToLowerInvariant());
+            prettyPrint = boolTrueStrings.Contains(((string)request.Query["prettyprint"] ?? string.Empty).ToLowerInvariant());
 
-            base.AddClasses = boolTrueStrings.Contains(((string)request.Query["classes"] ?? string.Empty).ToLowerInvariant());
+            addClasses = boolTrueStrings.Contains(((string)request.Query["classes"] ?? string.Empty).ToLowerInvariant());
 
             context.Response.ContentType = "image/svg+xml";
 
@@ -139,5 +146,15 @@ namespace KiCadDoxer.Server
 
             return result;
         }
+
+        public override HiddenPinRenderMode HiddenPinRenderMode => hiddenPins ?? base.HiddenPinRenderMode;
+
+        public override bool AddClasses => addClasses;
+
+        public override bool AddXlinkToSheets => addXlinkToSheets;
+
+        public override bool PrettyPrint => prettyPrint;
+
+        public override bool ShowPinNumbers => showPinNumbers;
     }
 }
