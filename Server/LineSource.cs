@@ -11,7 +11,6 @@ namespace KiCadDoxer
 {
     public class LineSource : IDisposable
     {
-        private static readonly HttpStatusCode[] redirectCodes = { HttpStatusCode.MovedPermanently, HttpStatusCode.SeeOther, HttpStatusCode.TemporaryRedirect };
         private TaskCompletionSource<string> etagCompletionSource = new TaskCompletionSource<string>();
         private int lineNumber;
 
@@ -85,20 +84,6 @@ namespace KiCadDoxer
 
                 var response = await client.GetAsync(uri);
                 toDispose.Add(response);
-
-                if (redirectCodes.Contains(response.StatusCode))
-                {
-                    redirectSet.Add(uri);
-
-                    Uri newUri = response.Headers.Location;
-                    if (newUri != null && !redirectSet.Contains(newUri) && redirectSet.Count < 20)
-                    {
-                        response.Dispose();
-                        toDispose.Remove(response);
-
-                        return await CreateReader(newUri);
-                    }
-                }
 
                 string etag = response.Headers.ETag?.Tag;
                 if (string.IsNullOrEmpty(etag))
