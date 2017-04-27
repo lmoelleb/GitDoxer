@@ -8,7 +8,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-namespace KiCadDoxer
+namespace KiCadDoxer.Renderer
 {
     // This class is somewhat agnostic to where it is called from - so it can be used without an http context
     // Warning: This has grown somewhat large - it is very linier and very simple to follow, but

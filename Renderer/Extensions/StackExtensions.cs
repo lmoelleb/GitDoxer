@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace KiCadDoxer.Extensions
+namespace KiCadDoxer.Renderer.Extensions
 {
     public static class StackExtensions
     {

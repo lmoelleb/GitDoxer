@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Hosting;
 using System.IO;
 
-namespace KiCadDoxer
+namespace KiCadDoxer.Server
 {
     public class Program
     {

@@ -1,4 +1,4 @@
-﻿using KiCadDoxer.Extensions;
+﻿using KiCadDoxer.Renderer.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
 
-namespace KiCadDoxer
+namespace KiCadDoxer.Renderer
 {
     public class SvgWriter : IDisposable
     {

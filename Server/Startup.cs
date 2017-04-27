@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Linq;
 
-namespace KiCadDoxer
+namespace KiCadDoxer.Server
 {
     public class Startup
     {

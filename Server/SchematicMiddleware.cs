@@ -1,8 +1,9 @@
-﻿using Microsoft.AspNetCore.Builder;
+﻿using KiCadDoxer.Renderer;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using System.Threading.Tasks;
 
-namespace KiCadDoxer
+namespace KiCadDoxer.Server
 {
     public class SchematicMiddleware
     {

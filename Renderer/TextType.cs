@@ -1,5 +1,5 @@
 ﻿
-namespace KiCadDoxer
+namespace KiCadDoxer.Renderer
 {
     public enum TextType
     {

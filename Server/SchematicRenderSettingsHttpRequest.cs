@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using KiCadDoxer.Renderer;
+using Microsoft.AspNetCore.Http;
 using System;
 using System.Globalization;
 using System.IO;
@@ -7,7 +8,7 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace KiCadDoxer
+namespace KiCadDoxer.Server
 {
     public class SchematicRenderSettingsHttpRequest : SchematicRenderSettings
     {

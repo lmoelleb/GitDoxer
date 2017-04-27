@@ -7,7 +7,7 @@ using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace KiCadDoxer
+namespace KiCadDoxer.Renderer
 {
     public class LineSource : IDisposable
     {

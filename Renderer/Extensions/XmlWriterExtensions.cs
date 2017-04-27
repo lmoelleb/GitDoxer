@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Xml;
 
-namespace KiCadDoxer.Extensions
+namespace KiCadDoxer.Renderer.Extensions
 {
     public static class XmlWriterExtensions
     {
