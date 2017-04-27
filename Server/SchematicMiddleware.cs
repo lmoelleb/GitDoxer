@@ -5,6 +5,14 @@ using System.Threading.Tasks;
 
 namespace KiCadDoxer.Server
 {
+    public static class SchematicMiddlewareExtensions
+    {
+        public static IApplicationBuilder UseSchematicMiddleware(this IApplicationBuilder builder)
+        {
+            return builder.UseMiddleware<SchematicMiddleware>();
+        }
+    }
+
     public class SchematicMiddleware
     {
         // Must have constructor with this signature, otherwise exception at run time
@@ -18,14 +26,6 @@ namespace KiCadDoxer.Server
         {
             var renderSettings = new SchematicRenderSettingsHttpRequest(context);
             return new SchematicRenderer().HandleSchematic(renderSettings);
-        }
-    }
-
-    public static class SchematicMiddlewareExtensions
-    {
-        public static IApplicationBuilder UseSchematicMiddleware(this IApplicationBuilder builder)
-        {
-            return builder.UseMiddleware<SchematicMiddleware>();
         }
     }
 }

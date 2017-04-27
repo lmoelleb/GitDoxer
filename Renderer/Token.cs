@@ -12,6 +12,7 @@ namespace KiCadDoxer.Renderer
         private int lineNumber;
         private string sourceUri;
         private string token;
+
         public Token(string token, int lineNumber, int characterNumber, string sourceUri)
         {
             this.token = token ?? string.Empty; // Might regret this one day... will deal with that... one day
@@ -134,6 +135,7 @@ namespace KiCadDoxer.Renderer
 
             return result;
         }
+
         public string ToLowerInvariant()
         {
             return token.ToLowerInvariant();

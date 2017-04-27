@@ -21,7 +21,6 @@ namespace KiCadDoxer.Server
 
             app.UseResponseCompression();
 
-            
             app.MapWhen(
                 context => SchematicRenderSettingsHttpRequest.CanHandleContext(context),
                 appBranch => appBranch.UseSchematicMiddleware());
@@ -31,7 +30,8 @@ namespace KiCadDoxer.Server
         {
             services.AddResponseCompression(options =>
             {
-                // We do not return query parameters in the response, so it should not be possible to use the compression to attack the SSL.
+                // We do not return query parameters in the response, so it should not be possible to
+                // use the compression to attack the SSL.
                 options.EnableForHttps = true;
                 options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(new[] { "image/svg+xml" }).ToArray();
             });
