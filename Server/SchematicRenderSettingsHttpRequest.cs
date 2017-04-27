@@ -52,6 +52,14 @@ namespace KiCadDoxer.Server
                 throw new Exception("TODO: Return bad request response instead");
             }
 
+            // Allow adding SVG to the extension as some (github, I am looking at you) expects the extension to match the file type... wierd expectation, but can't change it!
+            if (uri.LocalPath.EndsWith(".sch.svg", StringComparison.OrdinalIgnoreCase))
+            {
+                var builder = new UriBuilder(uri);
+                builder.Path = uri.LocalPath.Substring(0, uri.LocalPath.Length - 4);
+                uri = builder.Uri;
+            }
+
             HiddenPinRenderMode hiddenPinsRenderMode;
             if (!Enum.TryParse(request.Query["hiddenpins"], true, out hiddenPinsRenderMode))
             {
@@ -77,16 +85,16 @@ namespace KiCadDoxer.Server
             try
             {
                 string path = context.Request.Path;
-                if (path.EndsWith(".sch", StringComparison.OrdinalIgnoreCase))
+                if (path.EndsWith(".sch", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".sch.svg", StringComparison.OrdinalIgnoreCase))
                 {
                     return true;
                 }
 
-                string uriString = context.Request.Query["url"];
-                if (!string.IsNullOrWhiteSpace(uriString))
+                string urlString = context.Request.Query["url"];
+                if (!string.IsNullOrWhiteSpace(urlString))
                 {
-                    Uri uri = new Uri(uriString);
-                    if (uri.LocalPath.EndsWith(".sch", StringComparison.OrdinalIgnoreCase))
+                    Uri uri = new Uri(urlString);
+                    if (uri.LocalPath.EndsWith(".sch", StringComparison.OrdinalIgnoreCase) || uri.LocalPath.EndsWith(".sch.svg", StringComparison.OrdinalIgnoreCase))
                     {
                         return true;
                     }
