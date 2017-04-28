@@ -37,8 +37,6 @@ namespace KiCadDoxer.Renderer
             var cancellationToken = renderSettings.CancellationToken;
             using (lineSource = await renderSettings.CreateLineSource(cancellationToken))
             {
-                // A peek to get any error as early as possible
-                await lineSource.Peek();
                 using (var writer = new SvgWriter(renderSettings))
                 {
                     try
@@ -138,44 +136,62 @@ namespace KiCadDoxer.Renderer
                                         break;
                                 }
                             }
+                            else if (line.StartsWith("LIBS:"))
+                            {
+                                await HandleLibraryReference();
+                            }
                             else if (line.StartsWith("$Comp"))
                             {
                                 currentComponentPlacement = new ComponentPlacement();
                                 componentPlacements.Add(currentComponentPlacement);
                                 await lineSource.Read();
                             }
-                            else if (line.StartsWith("LIBS:"))
-                            {
-                                await HandleLibraryReference();
-                            }
                             else if (line.StartsWith("$Descr"))
                             {
-                                // Point of no return - we need to start the rendering at this point
-                                if (await HandleETagHeaders())
+                                if (!await InitializeRendering())
                                 {
                                     return; // Done - NotModified returned to the caller!
                                 }
-                                await InitializeRendering();
                                 await HandleDescription();
                             }
                             else if (line.StartsWith("Wire"))
                             {
+                                if (!await InitializeRendering())
+                                {
+                                    return; // Done - NotModified returned to the caller!
+                                }
                                 await HandleWire();
                             }
                             else if (line.StartsWith("Connection"))
                             {
+                                if (!await InitializeRendering())
+                                {
+                                    return; // Done - NotModified returned to the caller!
+                                }
                                 await HandleConnection();
                             }
                             else if (line.StartsWith("NoConn"))
                             {
+                                if (!await InitializeRendering())
+                                {
+                                    return; // Done - NotModified returned to the caller!
+                                }
                                 await HandleNoConnection();
                             }
                             else if (line.StartsWith("Text"))
                             {
+                                if (!await InitializeRendering())
+                                {
+                                    return; // Done - NotModified returned to the caller!
+                                }
                                 await HandleText();
                             }
                             else if (line.StartsWith("$Sheet"))
                             {
+                                if (!await InitializeRendering())
+                                {
+                                    return; // Done - NotModified returned to the caller!
+                                }
                                 await HandleSheet();
                             }
                             else
@@ -1132,20 +1148,20 @@ namespace KiCadDoxer.Renderer
                 return false;
             }
 
-            bool handled = false;
+            bool continueRendering = true;
 
             cancellationToken.ThrowIfCancellationRequested();
 
             if (etagHeaderValue == SvgWriter.RenderSettings.GetRequestETagHeaderValue())
             {
-                handled = await SvgWriter.RenderSettings.HandleMatchingETags(cancellationToken);
+                continueRendering = !await SvgWriter.RenderSettings.HandleMatchingETags(cancellationToken);
             }
             else
             {
                 SvgWriter.RenderSettings.SetResponseEtagHeaderValue(etagHeaderValue);
             }
 
-            return handled;
+            return continueRendering;
         }
 
         private async Task HandleLibraryReference()
@@ -1444,11 +1460,11 @@ namespace KiCadDoxer.Renderer
             wirePositions.Add((lineDef[2], lineDef[3]));
         }
 
-        private async Task InitializeRendering()
+        private async Task<bool> InitializeRendering()
         {
             if (isInitialized)
             {
-                return;
+                return true;
             }
 
             isInitialized = true;
@@ -1464,13 +1480,7 @@ namespace KiCadDoxer.Renderer
                 await (await cacheLibraryLineSourceTask).Peek();
             }
 
-            // Start writing at this point, so XML response headers can no longer be modified
-            await SvgWriter.WriteStartElementAsync("svg");
-            await SvgWriter.WriteAttributeStringAsync("stroke-linecap", "round");
-            await SvgWriter.WriteAttributeStringAsync("stroke-linejoin", "round");
-            await SvgWriter.WriteAttributeStringAsync("stroke-width", SvgWriter.Current.RenderSettings.DefaultStrokeWidth);
-            await SvgWriter.WriteAttributeStringAsync("fill", "none");
-            await SvgWriter.WriteAttributeStringAsync("class", "kicad schematics");
+            return await HandleETagHeaders();
         }
 
         #region LabelTemplates

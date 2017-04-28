@@ -14,6 +14,8 @@ namespace KiCadDoxer.Renderer
         private static AsyncLocal<SvgWriter> current = new AsyncLocal<SvgWriter>();
         private Stack<ElementStackEntry> stack = new Stack<ElementStackEntry>();
         private Lazy<Task<XmlWriter>> xmlWriterCreator;
+        bool rootElementWritten;
+        bool isClosed;
 
         public SvgWriter(SchematicRenderSettings renderSettings)
         {
@@ -46,6 +48,24 @@ namespace KiCadDoxer.Renderer
             }
         }
 
+        public async Task CloseAsync()
+        {
+            if (isClosed)
+            {
+                return;
+            }
+
+            isClosed = true;
+
+            if (xmlWriterCreator.IsValueCreated)
+            {
+                if (rootElementWritten)
+                {
+                    await WriteEndElementAsync("svg");
+                }
+            }
+        }
+
         public async Task FlushAsync()
         {
             if (xmlWriterCreator.IsValueCreated)
@@ -72,6 +92,8 @@ namespace KiCadDoxer.Renderer
 
         public async Task WriteAttributeStringAsync(string name, string value)
         {
+            await EnsureRootElementWritten();
+
             if (name == "stroke-width" && value == "0")
             {
                 // KiCad use 0 to determine default length... nice....
@@ -92,12 +114,16 @@ namespace KiCadDoxer.Renderer
 
         public async Task WriteCommentAsync(string comment)
         {
+            await EnsureRootElementWritten();
+
             var xmlWriter = await xmlWriterCreator.Value;
             await xmlWriter.WriteCommentAsync(comment);
         }
 
         public async Task WriteEndElementAsync(string name)
         {
+            await EnsureRootElementWritten();
+
             var xmlWriter = await xmlWriterCreator.Value;
             await xmlWriter.WriteEndElementAsync();
             var entry = stack.Pop();
@@ -109,6 +135,7 @@ namespace KiCadDoxer.Renderer
 
         public async Task WriteStartElementAsync(string name)
         {
+            await EnsureRootElementWritten();
             var xmlWriter = await xmlWriterCreator.Value;
             var parent = stack.PeekOrDefault();
             await xmlWriter.WriteStartElementAsync(null, name, SvgNs);
@@ -119,6 +146,31 @@ namespace KiCadDoxer.Renderer
             }
 
             stack.Push(new ElementStackEntry(parent, name));
+        }
+
+        private async Task EnsureRootElementWritten()
+        {
+            if (rootElementWritten)
+            {
+                return;
+            }
+
+            rootElementWritten = true;
+            try
+            {
+                await WriteStartElementAsync("svg");
+            }
+            catch (Exception)
+            {
+                rootElementWritten = false;
+                throw;
+            }
+
+            await WriteAttributeStringAsync("stroke-linecap", "round");
+            await WriteAttributeStringAsync("stroke-linejoin", "round");
+            await WriteAttributeStringAsync("stroke-width", SvgWriter.Current.RenderSettings.DefaultStrokeWidth);
+            await WriteAttributeStringAsync("fill", "none");
+            await WriteAttributeStringAsync("class", "kicad schematics");
         }
 
         public class ElementStackEntry
@@ -161,6 +213,8 @@ namespace KiCadDoxer.Renderer
 
                 return true;
             }
+
+
         }
     }
 }

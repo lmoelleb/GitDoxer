@@ -13,6 +13,7 @@ namespace KiCadDoxer.Renderer
     {
         private Lazy<Task<HttpResponseMessage>> responseMessageTask;
         private Uri uri;
+        private HttpClient client = new HttpClient();
 
         public LineSourceHttp(Uri uri, CancellationToken cancellationToken)
             : base(cancellationToken)
@@ -21,10 +22,9 @@ namespace KiCadDoxer.Renderer
             responseMessageTask = new Lazy<Task<HttpResponseMessage>>(async () =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                HttpClient client = new HttpClient();
-                RegisterForDisposal(client);
 
-                var response = await client.GetAsync(uri);
+                var response = await client.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                response.EnsureSuccessStatusCode();
                 RegisterForDisposal(response);
                 return response;
             });
