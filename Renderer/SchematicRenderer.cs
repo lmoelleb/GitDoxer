@@ -37,6 +37,11 @@ namespace KiCadDoxer.Renderer
             var cancellationToken = renderSettings.CancellationToken;
             using (lineSource = await renderSettings.CreateLineSource(cancellationToken))
             {
+                if (string.IsNullOrEmpty(lineSource.Url))
+                {
+                    lineSource.Url = "KiCad Schematic (.SCH)"; // Not ideal, but better than not even knowing if it is in a library or what.
+                }
+
                 using (var writer = new SvgWriter(renderSettings))
                 {
                     try
@@ -1172,8 +1177,21 @@ namespace KiCadDoxer.Renderer
             cancellationToken.ThrowIfCancellationRequested();
             if (line.EndsWith("-cache"))
             {
-                cacheLibraryLineSourceTask = SvgWriter.RenderSettings.CreateLibraryLineSource(line.Substring(5) + ".lib", cancellationToken); // substring 5 removes LIBS:
+                string name = line.Substring(5) + ".lib"; // Substring to remove LIBS: prefix
+                cacheLibraryLineSourceTask = CreateLibraryLineSource(name);
             }
+        }
+
+        private async Task<LineSource> CreateLibraryLineSource(string name)
+        {
+            var cancellationToken = SvgWriter.Current.RenderSettings.CancellationToken;
+            var result = await SvgWriter.RenderSettings.CreateLibraryLineSource(name, cancellationToken);
+            if (string.IsNullOrEmpty(result.Url))
+            {
+                result.Url = $"KiCad Library ({name})";
+            }
+
+            return result;
         }
 
         private async Task HandleNoConnection()
@@ -1258,7 +1276,7 @@ namespace KiCadDoxer.Renderer
                             shape = PinSheetLabelShape.Unspecified;
 
                             // TODO: Log to application insights
-                            await SvgWriter.WriteCommentAsync($"Unknown sheet label form: {tokens[2]} at line {lineSource.CurrentLineNumber} in {lineSource.Path}");
+                            await SvgWriter.WriteCommentAsync($"Unknown sheet label form: {tokens[2]} at line {lineSource.CurrentLineNumber} in {lineSource.Url}");
                             break;
                     }
                     int orientation;
@@ -1278,7 +1296,7 @@ namespace KiCadDoxer.Renderer
                         default:
 
                             // TODO: Log to application insights
-                            await SvgWriter.WriteCommentAsync($"Unknown sheet label orientation: {tokens[3]} at line {lineSource.CurrentLineNumber} in {lineSource.Path}");
+                            await SvgWriter.WriteCommentAsync($"Unknown sheet label orientation: {tokens[3]} at line {lineSource.CurrentLineNumber} in {lineSource.Url}");
                             orientation = 0;
                             break;
                     }
@@ -1304,7 +1322,7 @@ namespace KiCadDoxer.Renderer
             if (type == TextType.Unknown)
             {
                 // TODO: Log to application insights!
-                await SvgWriter.WriteCommentAsync($"WARNING: Unsupported text type {tokens[1]} at line {lineSource.CurrentLineNumber - 1} in {lineSource.Path}");
+                await SvgWriter.WriteCommentAsync($"WARNING: Unsupported text type {tokens[1]} at line {lineSource.CurrentLineNumber - 1} in {lineSource.Url}");
                 type = TextType.Notes;
             }
 

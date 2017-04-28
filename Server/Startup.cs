@@ -16,7 +16,7 @@ namespace KiCadDoxer.Server
 
             if (env.IsDevelopment())
             {
-                app.UseDeveloperExceptionPage();
+                //app.UseDeveloperExceptionPage();
             }
 
             app.UseResponseCompression();

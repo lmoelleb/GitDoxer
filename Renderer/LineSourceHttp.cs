@@ -30,7 +30,7 @@ namespace KiCadDoxer.Renderer
             });
         }
 
-        public override string Path => uri.ToString();
+        public override string Url => uri.ToString();
 
         protected override async Task<TextReader> CreateReader(CancellationToken cancellationToken)
         {

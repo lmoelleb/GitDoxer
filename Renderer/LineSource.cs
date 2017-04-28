@@ -1,4 +1,5 @@
-﻿using System;
+﻿using KiCadDoxer.Renderer.Exceptions;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -38,7 +39,8 @@ namespace KiCadDoxer.Renderer
 
         public Task<string> ETag => etagTask.Value;
 
-        public abstract string Path { get; }
+        public virtual string Url { get; internal set; }
+
 
         public async Task<string> Peek()
         {
@@ -70,7 +72,7 @@ namespace KiCadDoxer.Renderer
             string result = await Read();
             if (result == null)
             {
-                throw new FormatException($"Unexpected End of File on line {lineNumber} in {Path}");
+                throw new KiCadFileFormatException(this, CurrentLineNumber, 0, $"Unexpected End of File");
             }
 
             return result;
@@ -121,7 +123,7 @@ namespace KiCadDoxer.Renderer
                         {
                             if (current.Length > 0 || emitEmptyString)
                             {
-                                result.Add(new Token(current.ToString(), lineNumber, charIndex, Path));
+                                result.Add(new Token(current.ToString(), this, charIndex));
                                 current.Length = 0;
                                 emitEmptyString = false;
                             }
@@ -135,7 +137,7 @@ namespace KiCadDoxer.Renderer
             }
             if (current.Length > 0 || emitEmptyString)
             {
-                result.Add(new Token(current.ToString(), lineNumber, charIndex, Path));
+                result.Add(new Token(current.ToString(), this, charIndex));
             }
 
             return result.ToArray();
@@ -146,7 +148,7 @@ namespace KiCadDoxer.Renderer
             var result = await ReadTokens();
             if (result == null)
             {
-                throw new FormatException($"Unexpected End of File on line {lineNumber} in {Path}");
+                throw new KiCadFileFormatException(this, CurrentLineNumber, 0, $"Unexpected End of File");
             }
 
             return result;

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using KiCadDoxer.Renderer.Exceptions;
+using System;
 using System.Globalization;
 using System.Linq;
 
@@ -8,17 +9,14 @@ namespace KiCadDoxer.Renderer
     {
         private static string[] validBooleanFalse = { "N", "0" };
         private static string[] validBooleanTrue = { "Y", "1" };
-        private int characterNumber;
-        private int lineNumber;
-        private string sourceUri;
+        private LineSource lineSource;
         private string token;
 
-        public Token(string token, int lineNumber, int characterNumber, string sourceUri)
+        public Token(string token, LineSource lineSource, int characterNumber)
         {
             this.token = token ?? string.Empty; // Might regret this one day... will deal with that... one day
-            this.lineNumber = lineNumber;
-            this.characterNumber = characterNumber;
-            this.sourceUri = sourceUri;
+            this.CharacterNumber = characterNumber;
+            this.LineNumber = lineSource.CurrentLineNumber;
         }
 
         public char this[int index]
@@ -71,16 +69,14 @@ namespace KiCadDoxer.Renderer
                 return false;
             }
 
-            // TODO: It appears FileFormatException is not in .NET Core? - check indetail if I am
-            //       just missing a reference and if not, implement custom exception
-            throw new FormatException($"Expected one of the values {validBooleanTrue.Union(validBooleanFalse)}. Got \"{ToString()}\" at line# {lineNumber}, character# {characterNumber} in {sourceUri}.");
+            throw new KiCadFileFormatException(this, $"Expected one of the values {validBooleanTrue.Union(validBooleanFalse)}. Got \"{ToString()}\"."); 
         }
 
         public char ToChar()
         {
             if (token.Length != 1)
             {
-                throw new FormatException($"Expected a single character, got \"{ToString()}\" at line# {lineNumber}, character# {characterNumber} in {sourceUri}.");
+                throw new KiCadFileFormatException(this, $"Expected a single character. Got \"{ToString()}\".");
             }
 
             return token[0];
@@ -91,9 +87,7 @@ namespace KiCadDoxer.Renderer
             double result;
             if (!double.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out result))
             {
-                // TODO: It appears FileFormatException is not in .NET Core? - check indetail if I am
-                //       just missing a reference and if not, implement custom exception
-                throw new FormatException($"Expected a floating point number, got \"{ToString()}\" at line# {lineNumber}, character# {characterNumber} in {sourceUri}.");
+                throw new KiCadFileFormatException(this, $"Expected a floating point number. Got \"{ToString()}\".");
             }
 
             return result;
@@ -104,9 +98,7 @@ namespace KiCadDoxer.Renderer
             T result;
             if (!Enum.TryParse(token, true, out result))
             {
-                // TODO: It appears FileFormatException is not in .NET Core? - check indetail if I am
-                //       just missing a reference and if not, implement custom exception
-                throw new FormatException($"Expected one of the values {string.Join(", ", Enum.GetNames(typeof(T)))}. Got \"{ToString()}\" at line# {lineNumber}, character# {characterNumber} in {sourceUri}.");
+                throw new KiCadFileFormatException(this, $"Expected one of the values {string.Join(", ", Enum.GetNames(typeof(T)))}. Got \"{ToString()}\".");
             }
 
             return result;
@@ -128,9 +120,7 @@ namespace KiCadDoxer.Renderer
             int result;
             if (!int.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out result))
             {
-                // TODO: It appears FileFormatException is not in .NET Core? - check indetail if I am
-                //       just missing a reference and if not, implement custom exception
-                throw new FormatException($"Expected an integer number, got \"{ToString()}\" at line# {lineNumber}, character# {characterNumber} in {sourceUri}.");
+                throw new KiCadFileFormatException(this, $"Expected an integer number. Got \"{ToString()}\".");
             }
 
             return result;
@@ -146,9 +136,10 @@ namespace KiCadDoxer.Renderer
             return token;
         }
 
-        public string ToUpperInvariant()
-        {
-            return token.ToUpperInvariant();
-        }
+        internal LineSource LineSource => lineSource;
+
+        internal int CharacterNumber { get; private set; }
+
+        public int LineNumber { get; private set; }
     }
 }
