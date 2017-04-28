@@ -32,8 +32,13 @@ https://github.com/trainiot/Hardware/blob/master/Spi2Dcc/DccGenerator.sch
 ```
 change it to
 ```
-https://github.com/trainiot/Hardware/blob/master/Spi2Dcc/DccGenerator.sch?.svg
+https://github.com/trainiot/Hardware/blob/master/Spi2Dcc/DccGenerator.sch.svg
 ```
+If you use query parameters (see below), then you can append a dummy query parameter at the end like this: 
+```
+https://github.com/trainiot/Hardware/blob/master/Spi2Dcc/DccGenerator.sch?hiddenpins=show&.svg
+```
+
 ### Optional query parameters
 Query parameters are not case sensitive.
 - HiddenPins
