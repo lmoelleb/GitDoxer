@@ -163,7 +163,7 @@ namespace KiCadDoxer.Server
                         {
                             await writer.WriteStartElementAsync("text");
                             await writer.WriteAttributeStringAsync("x", "0");
-                            await writer.WriteAttributeStringAsync("y", "0");
+                            await writer.WriteAttributeStringAsync("y", "100");
                             await writer.WriteAttributeStringAsync("stroke", "rgb(255,0,0");
                             await writer.WriteAttributeStringAsync("fill", "rgb(255,0,0");
                             await writer.WriteAttributeStringAsync("font-size", "100");
