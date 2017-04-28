@@ -12,10 +12,10 @@ namespace KiCadDoxer.Renderer
     {
         private const string SvgNs = "http://www.w3.org/2000/svg";
         private static AsyncLocal<SvgWriter> current = new AsyncLocal<SvgWriter>();
+        private bool isClosed;
+        private bool isRootElementWritten;
         private Stack<ElementStackEntry> stack = new Stack<ElementStackEntry>();
         private Lazy<Task<XmlWriter>> xmlWriterCreator;
-        bool rootElementWritten;
-        bool isClosed;
 
         public SvgWriter(SchematicRenderSettings renderSettings)
         {
@@ -37,16 +37,11 @@ namespace KiCadDoxer.Renderer
 
         public static SvgWriter Current => current.Value;
 
-        public SchematicRenderSettings RenderSettings { get; }
+        public bool IsClosed => isClosed;
 
-        public void Dispose()
-        {
-            if (xmlWriterCreator.IsValueCreated)
-            {
-                //Hmm, is this always safe? Come on microsoft, we need async disposable now!!
-                xmlWriterCreator.Value.Result.Dispose();
-            }
-        }
+        public bool IsRootElementWritten => isRootElementWritten;
+
+        public SchematicRenderSettings RenderSettings { get; }
 
         public async Task CloseAsync()
         {
@@ -59,10 +54,19 @@ namespace KiCadDoxer.Renderer
 
             if (xmlWriterCreator.IsValueCreated)
             {
-                if (rootElementWritten)
+                if (isRootElementWritten)
                 {
                     await WriteEndElementAsync("svg");
                 }
+            }
+        }
+
+        public void Dispose()
+        {
+            if (xmlWriterCreator.IsValueCreated)
+            {
+                //Hmm, is this always safe? Come on microsoft, we need async disposable now!!
+                xmlWriterCreator.Value.Result.Dispose();
             }
         }
 
@@ -148,21 +152,28 @@ namespace KiCadDoxer.Renderer
             stack.Push(new ElementStackEntry(parent, name));
         }
 
+        public async Task WriteStringAsync(string text)
+        {
+            await EnsureRootElementWritten();
+            var xmlWriter = await xmlWriterCreator.Value;
+            await xmlWriter.WriteStringAsync(text);
+        }
+
         private async Task EnsureRootElementWritten()
         {
-            if (rootElementWritten)
+            if (isRootElementWritten)
             {
                 return;
             }
 
-            rootElementWritten = true;
+            isRootElementWritten = true;
             try
             {
                 await WriteStartElementAsync("svg");
             }
             catch (Exception)
             {
-                rootElementWritten = false;
+                isRootElementWritten = false;
                 throw;
             }
 
@@ -213,8 +224,6 @@ namespace KiCadDoxer.Renderer
 
                 return true;
             }
-
-
         }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using KiCadDoxer.Renderer;
+using KiCadDoxer.Renderer.Exceptions;
 using Microsoft.AspNetCore.Http;
 using System;
 using System.Globalization;
@@ -14,15 +15,13 @@ namespace KiCadDoxer.Server
     public class SchematicRenderSettingsHttpRequest : SchematicRenderSettings
     {
         private static readonly string[] boolTrueStrings = new[] { "y", "yes", "1", "t", "true" };
+        private bool addClasses;
+        private bool addXlinkToSheets;
         private HttpContext context;
-        private Uri uri;
         private HiddenPinRenderMode? hiddenPins;
-        bool showPinNumbers;
-        bool addXlinkToSheets;
-        bool prettyPrint;
-        bool addClasses;
-
-
+        private bool prettyPrint;
+        private bool showPinNumbers;
+        private Uri uri;
 
         public SchematicRenderSettingsHttpRequest(HttpContext context)
         {
@@ -52,7 +51,8 @@ namespace KiCadDoxer.Server
                 throw new Exception("TODO: Return bad request response instead");
             }
 
-            // Allow adding SVG to the extension as some (github, I am looking at you) expects the extension to match the file type... wierd expectation, but can't change it!
+            // Allow adding SVG to the extension as some (github, I am looking at you) expects the
+            // extension to match the file type... wierd expectation, but can't change it!
             if (uri.LocalPath.EndsWith(".sch.svg", StringComparison.OrdinalIgnoreCase))
             {
                 var builder = new UriBuilder(uri);
@@ -79,6 +79,16 @@ namespace KiCadDoxer.Server
             // A default value that will hopefully be replaced by an etag value
             context.Response.Headers["Cache-Control"] = "max-age=30";
         }
+
+        public override bool AddClasses => addClasses;
+
+        public override bool AddXlinkToSheets => addXlinkToSheets;
+
+        public override HiddenPinRenderMode HiddenPinRenderMode => hiddenPins ?? base.HiddenPinRenderMode;
+
+        public override bool PrettyPrint => prettyPrint;
+
+        public override bool ShowPinNumbers => showPinNumbers;
 
         public static bool CanHandleContext(HttpContext context)
         {
@@ -123,11 +133,79 @@ namespace KiCadDoxer.Server
 
         // It would probably be better to have a specific class instead of the generic TextWriter -
         // then the methods to deal with etags etc can be moved to it, as they are NOT SETTINGS!
-        public override Task<TextWriter> CreateOutputWriter(CancellationToken cancellationToken) => Task.FromResult((TextWriter)new StreamWriter(this.context.Response.Body, Encoding.UTF8));
+        public override Task<TextWriter> CreateOutputWriter(CancellationToken cancellationToken)
+        {
+            return Task.FromResult((TextWriter)new StreamWriter(this.context.Response.Body, Encoding.UTF8));
+        }
 
         public override string GetRequestETagHeaderValue()
         {
             return context.Request.Headers["If-None-Match"];
+        }
+
+        public override async Task<bool> HandleException(Exception ex)
+        {
+            if (ex is KiCadFileFormatException || ex is KiCadFileNotAvailableException)
+            {
+                // The message (but not callstack) for these exception can be displayed to the caller
+                // - they contain no sensitive information
+
+                if (context.Response.HasStarted)
+                {
+                    // Too late to change the return code. For now, write the error as a comment -
+                    // better than nothing. Also consider rendering it as actual text visible in the
+                    // image (need to know if the root node has been written or not), and need access
+                    // to the xml writer
+                    try
+                    {
+                        SvgWriter writer = SvgWriter.Current;
+                        if (writer.IsRootElementWritten && !writer.IsClosed)
+                        {
+                            await writer.WriteStartElementAsync("text");
+                            await writer.WriteAttributeStringAsync("x", "0");
+                            await writer.WriteAttributeStringAsync("y", "0");
+                            await writer.WriteAttributeStringAsync("stroke", "rgb(255,0,0");
+                            await writer.WriteAttributeStringAsync("fill", "rgb(255,0,0");
+                            await writer.WriteAttributeStringAsync("font-size", "100");
+                            await writer.WriteStringAsync(ex.Message);
+                            await writer.WriteEndElementAsync("text");
+                        }
+                        else
+                        {
+                            // Most likely this will not be visible in any way, but it is the last
+                            // chance to let the caller know something is wrong.
+                            await writer.WriteCommentAsync(ex.Message);
+                            await writer.FlushAsync();
+                            return false; // Still throw the exception to let the entire pipeline know this went wrong!
+                        }
+                    }
+                    catch
+                    {
+                        // TODO: Log this exception to Application Insights - it has no where else to
+                        //       go as I want to rethrow the original exception.
+                    }
+                }
+                else
+                {
+                    // The response has not yet started. So it is an option to return an actual error
+                    // code. Consider using some middleware that handles this nicely - maybe on of
+                    // them there fancy error pages :)
+                    context.Response.ContentType = "text/plain; charset=\"UTF-8\"";
+                    context.Response.StatusCode = 500;
+                    if (ex is KiCadFileNotAvailableException)
+                    {
+                        context.Response.StatusCode = (int)((KiCadFileNotAvailableException)ex).StatusCode;
+                    }
+                    await context.Response.WriteAsync(ex.Message);
+                    // In case the writer has started up, it will have stuff it will flush to the reponse stream
+                    // For now accept this (write a newline to space it out a bit). Later stop it - worst case
+                    // put a buffer inbetween where we can turn off further writes.
+                    await context.Response.WriteAsync("\r\n\r\n");
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         public override Task<bool> HandleMatchingETags(CancellationToken cancellationToken)
@@ -154,15 +232,5 @@ namespace KiCadDoxer.Server
 
             return result;
         }
-
-        public override HiddenPinRenderMode HiddenPinRenderMode => hiddenPins ?? base.HiddenPinRenderMode;
-
-        public override bool AddClasses => addClasses;
-
-        public override bool AddXlinkToSheets => addXlinkToSheets;
-
-        public override bool PrettyPrint => prettyPrint;
-
-        public override bool ShowPinNumbers => showPinNumbers;
     }
 }

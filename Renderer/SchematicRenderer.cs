@@ -218,6 +218,13 @@ namespace KiCadDoxer.Renderer
                         await SvgWriter.WriteEndElementAsync("svg");
                         await SvgWriter.FlushAsync();
                     }
+                    catch (Exception ex)
+                    {
+                        if (!await SvgWriter.Current.RenderSettings.HandleException(ex))
+                        {
+                            throw;
+                        }
+                    }
                     finally
                     {
                         if (cacheLibraryLineSourceTask != null)
@@ -1461,6 +1468,7 @@ namespace KiCadDoxer.Renderer
         private async Task HandleWire()
         {
             Token[] type = await lineSource.ReadTokensNotEof(); // Wire Wire Line or Wire Bus Line
+
             Token[] lineDef = await lineSource.ReadTokensNotEof();
             await SvgWriter.WriteStartElementAsync("line");
 

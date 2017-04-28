@@ -15,6 +15,7 @@ namespace KiCadDoxer.Renderer
         public Token(string token, LineSource lineSource, int characterNumber)
         {
             this.token = token ?? string.Empty; // Might regret this one day... will deal with that... one day
+            this.lineSource = lineSource;
             this.CharacterNumber = characterNumber;
             this.LineNumber = lineSource.CurrentLineNumber;
         }

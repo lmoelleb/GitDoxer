@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -42,5 +43,8 @@ namespace KiCadDoxer.Renderer
         {
             return ComponentFieldRenderMode.Default;
         }
+
+
+        public virtual Task<bool> HandleException(Exception ex) => Task.FromResult(false);
     }
 }

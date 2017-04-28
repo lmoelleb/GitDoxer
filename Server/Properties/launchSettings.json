@@ -11,7 +11,7 @@
     "IIS Express": {
       "commandName": "IISExpress",
       "launchBrowser": true,
-      "launchUrl": "github/trainiot/Hardware/master/Spi2Dcc/PanelAndSensorsNotHere.sch?hiddenpins=ShowIfConnectedToWire&.svg",
+      "launchUrl": "github/trainiot/Hardware/master/Spi2Dcc/PanelAndSensors.sch?hiddenpins=ShowIfConnectedToWire&.svg",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
