@@ -13,9 +13,9 @@ namespace KiCadDoxer.Renderer
 {
     public class LineSourceHttp : LineSource
     {
+        private HttpClient client = new HttpClient();
         private Lazy<Task<HttpResponseMessage>> responseMessageTask;
         private Uri url;
-        private HttpClient client = new HttpClient();
 
         public LineSourceHttp(Uri url, CancellationToken cancellationToken)
             : base(cancellationToken)
@@ -26,7 +26,7 @@ namespace KiCadDoxer.Renderer
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-                
+
                 if (!response.IsSuccessStatusCode)
                 {
                     throw new KiCadFileNotAvailableException(response.StatusCode, $"Got {(int)response.StatusCode} {GetStatusCodeMessage(response.StatusCode)} from: {url}");
@@ -36,28 +36,6 @@ namespace KiCadDoxer.Renderer
                 RegisterForDisposal(response);
                 return response;
             });
-        }
-
-        private static string GetStatusCodeMessage(HttpStatusCode code)
-        {
-            if (code == HttpStatusCode.OK)
-            {
-                return "OK";
-            }
-
-            // Must not name the builder "Bob"... must not... mu... oh screw it!
-            StringBuilder bob = new StringBuilder();
-            foreach (var c in code.ToString())
-            {
-                if (char.IsUpper(c) && bob.Length > 0)
-                {
-                    bob.Append(' ');
-                }
-
-                bob.Append(c);
-            }
-
-            return bob.ToString();
         }
 
         public override string Url => url.ToString();
@@ -93,6 +71,28 @@ namespace KiCadDoxer.Renderer
             }
 
             return etag;
+        }
+
+        private static string GetStatusCodeMessage(HttpStatusCode code)
+        {
+            if (code == HttpStatusCode.OK)
+            {
+                return "OK";
+            }
+
+            // Must not name the builder "Bob"... must not... mu... oh screw it!
+            StringBuilder bob = new StringBuilder();
+            foreach (var c in code.ToString())
+            {
+                if (char.IsUpper(c) && bob.Length > 0)
+                {
+                    bob.Append(' ');
+                }
+
+                bob.Append(c);
+            }
+
+            return bob.ToString();
         }
     }
 }

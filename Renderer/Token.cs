@@ -20,6 +20,12 @@ namespace KiCadDoxer.Renderer
             this.LineNumber = lineSource.CurrentLineNumber;
         }
 
+        public int LineNumber { get; private set; }
+
+        internal int CharacterNumber { get; private set; }
+
+        internal LineSource LineSource => lineSource;
+
         public char this[int index]
         {
             get
@@ -70,7 +76,7 @@ namespace KiCadDoxer.Renderer
                 return false;
             }
 
-            throw new KiCadFileFormatException(this, $"Expected one of the values {validBooleanTrue.Union(validBooleanFalse)}. Got \"{ToString()}\"."); 
+            throw new KiCadFileFormatException(this, $"Expected one of the values {validBooleanTrue.Union(validBooleanFalse)}. Got \"{ToString()}\".");
         }
 
         public char ToChar()
@@ -136,11 +142,5 @@ namespace KiCadDoxer.Renderer
         {
             return token;
         }
-
-        internal LineSource LineSource => lineSource;
-
-        internal int CharacterNumber { get; private set; }
-
-        public int LineNumber { get; private set; }
     }
 }

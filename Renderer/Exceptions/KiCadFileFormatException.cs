@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace KiCadDoxer.Renderer.Exceptions
 {
@@ -10,7 +8,7 @@ namespace KiCadDoxer.Renderer.Exceptions
         {
         }
 
-        internal KiCadFileFormatException(LineSource lineSource, int lineNumber, int characterNumber, string message) 
+        internal KiCadFileFormatException(LineSource lineSource, int lineNumber, int characterNumber, string message)
             : base($"{message} Line# {lineNumber} Col# {characterNumber} {lineSource.Url}")
         {
         }

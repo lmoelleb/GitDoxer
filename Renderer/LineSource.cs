@@ -41,7 +41,6 @@ namespace KiCadDoxer.Renderer
 
         public virtual string Url { get; internal set; }
 
-
         public async Task<string> Peek()
         {
             if (peekedLine == null)

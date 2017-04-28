@@ -197,9 +197,11 @@ namespace KiCadDoxer.Server
                         context.Response.StatusCode = (int)((KiCadFileNotAvailableException)ex).StatusCode;
                     }
                     await context.Response.WriteAsync(ex.Message);
-                    // In case the writer has started up, it will have stuff it will flush to the reponse stream
-                    // For now accept this (write a newline to space it out a bit). Later stop it - worst case
-                    // put a buffer inbetween where we can turn off further writes.
+
+                    // In case the writer has started up, it will have stuff it will flush to the
+                    // reponse stream For now accept this (write a newline to space it out a bit).
+                    // Later stop it - worst case put a buffer inbetween where we can turn off
+                    // further writes.
                     await context.Response.WriteAsync("\r\n\r\n");
                     return true;
                 }

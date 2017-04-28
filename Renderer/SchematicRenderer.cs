@@ -315,6 +315,18 @@ namespace KiCadDoxer.Renderer
             return $"\"{etag}_\\|/_{assemblyFileDate}\"";
         }
 
+        private async Task<LineSource> CreateLibraryLineSource(string name)
+        {
+            var cancellationToken = SvgWriter.Current.RenderSettings.CancellationToken;
+            var result = await SvgWriter.RenderSettings.CreateLibraryLineSource(name, cancellationToken);
+            if (string.IsNullOrEmpty(result.Url))
+            {
+                result.Url = $"KiCad Library ({name})";
+            }
+
+            return result;
+        }
+
         // lifted from https://github.com/KiCad/kicad-source-mirror/blob/master/eeschema/sch_text.cpp (SCH_HIERLABEL::GetSchematicTextOffset)
         private (double X, double Y) GetSchematicTextOffset(double lineWidth, int orientation)
         {
@@ -1187,18 +1199,6 @@ namespace KiCadDoxer.Renderer
                 string name = line.Substring(5) + ".lib"; // Substring to remove LIBS: prefix
                 cacheLibraryLineSourceTask = CreateLibraryLineSource(name);
             }
-        }
-
-        private async Task<LineSource> CreateLibraryLineSource(string name)
-        {
-            var cancellationToken = SvgWriter.Current.RenderSettings.CancellationToken;
-            var result = await SvgWriter.RenderSettings.CreateLibraryLineSource(name, cancellationToken);
-            if (string.IsNullOrEmpty(result.Url))
-            {
-                result.Url = $"KiCad Library ({name})";
-            }
-
-            return result;
         }
 
         private async Task HandleNoConnection()

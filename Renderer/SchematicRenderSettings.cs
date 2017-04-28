@@ -30,6 +30,8 @@ namespace KiCadDoxer.Renderer
         // Could be a property, but I like it looks a bit "symetric" with SetResponseETag
         public virtual string GetRequestETagHeaderValue() => string.Empty;
 
+        public virtual Task<bool> HandleException(Exception ex) => Task.FromResult(false);
+
         public virtual Task<bool> HandleMatchingETags(CancellationToken cancellationToken)
         {
             return Task.FromResult(false);
@@ -43,8 +45,5 @@ namespace KiCadDoxer.Renderer
         {
             return ComponentFieldRenderMode.Default;
         }
-
-
-        public virtual Task<bool> HandleException(Exception ex) => Task.FromResult(false);
     }
 }
