@@ -116,7 +116,6 @@ namespace KiCadDoxer.Renderer
                 int read = await ReadChar();
 
                 bool isWhiteSpace = IsWhiteSpace((char)read);
-                bool isEoF = read == -1;
 
                 // Skip leading whitespaces
                 if (!inQuotedString && !wasQuotedString && tokenStringBuilder.Length == 0 && isWhiteSpace)
@@ -124,26 +123,23 @@ namespace KiCadDoxer.Renderer
                     continue;
                 }
 
-                if (isEoF || wasQuotedString || isWhiteSpace)
+                bool isEoF = read == -1;
+                bool isSExpressionToken = !inQuotedString && (read == '(' || read == ')');
+
+                if (wasQuotedString && !(isEoF || isWhiteSpace || (isSExpressionToken && tokenStringBuilder.Length > 0)))
                 {
-                    // Put the whitespace back so we leave right after the token - Then method
+                    throw new KiCadFileFormatException(this, tokenLineNumber, tokenColumnNumber, "Quoted text must be followed by a whitespace or a parenthesis");
+                }
+
+
+                if (isEoF || wasQuotedString || isWhiteSpace || (isSExpressionToken && tokenStringBuilder.Length > 0))
+                {
+                    // Put the whitespace or expression token back so we leave right after the token - Then method
                     // reading the next line knows it first has to read to the end of the current.
                     // That way we do not need to deal with the difference from whitespaces at the
                     // end of the line
                     peekedChar = read;
                     string tokenValue = tokenStringBuilder.ToString();
-
-                    if (Mode != TokenizerMode.EeSchema && !wasQuotedString)
-                    {
-                        switch (tokenValue)
-                        {
-                            case "(":
-                                return new Token(TokenType.ExpressionOpen, this, tokenLineNumber, tokenColumnNumber);
-
-                            case ")":
-                                return new Token(TokenType.ExpressionClose, this, tokenLineNumber, tokenColumnNumber);
-                        }
-                    }
 
                     return new Token(tokenValue, this, tokenLineNumber, tokenColumnNumber);
                 }
@@ -152,6 +148,7 @@ namespace KiCadDoxer.Renderer
                 {
                     throw new KiCadFileFormatException(this, lineNumber, columnNumber, "Unexpected End of File.");
                 }
+
 
                 char c = (char)read;
 
@@ -193,6 +190,14 @@ namespace KiCadDoxer.Renderer
                     if (tokenStringBuilder.Length == 0 && c == '\"')
                     {
                         inQuotedString = true;
+                    }
+                    else if (Mode == TokenizerMode.SExpresionKiCad && c == '(')
+                    {
+                        return new Token(TokenType.ExpressionOpen, this, tokenLineNumber, tokenColumnNumber);
+                    }
+                    else if (Mode == TokenizerMode.SExpresionKiCad && c == ')')
+                    {
+                        return new Token(TokenType.ExpressionClose, this, tokenLineNumber, tokenColumnNumber);
                     }
                     else
                     {

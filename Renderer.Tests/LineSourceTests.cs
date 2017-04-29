@@ -1,4 +1,5 @@
 using KiCadDoxer.Renderer;
+using KiCadDoxer.Renderer.Exceptions;
 using System;
 using System.Threading.Tasks;
 using Xunit;
@@ -24,6 +25,26 @@ namespace Renderer.Tests
             {
                 string token = await source.ReadToken();
                 Assert.Equal("NoQuotes", token);
+            }
+        }
+
+        [Fact]
+        public async Task NoNonWhiteSpaceCharacterAfterQuotedText()
+        {
+            using (var source = new StringLineSource(TokenizerMode.SExpresionKiCad, "\"t\"est"))
+            {
+                await Assert.ThrowsAsync<KiCadFileFormatException>(async () => await source.ReadToken());
+            }
+        }
+
+        [Fact]
+        public async Task CloseExpressionDirectlyAfterQuotedText()
+        {
+            using (var source = new StringLineSource(TokenizerMode.SExpresionKiCad, "(\"test\")"))
+            {
+                Assert.Equal(TokenType.ExpressionOpen, (await source.ReadToken()).Type);
+                Assert.Equal("test", await source.ReadToken());
+                Assert.Equal(TokenType.ExpressionClose, (await source.ReadToken()).Type);
             }
         }
 
