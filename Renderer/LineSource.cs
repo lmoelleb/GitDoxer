@@ -83,13 +83,6 @@ namespace KiCadDoxer.Renderer
             return peekedLine;
         }
 
-        public async Task<Token> ReadToken()
-        {
-            var result = await PeekToken();
-            peekedToken = null;
-            return result;
-        }
-
         public async Task<Token> PeekToken()
         {
             if (Mode == TokenizerMode.Unspecified)
@@ -131,13 +124,12 @@ namespace KiCadDoxer.Renderer
                     throw new KiCadFileFormatException(this, tokenLineNumber, tokenColumnNumber, "Quoted text must be followed by a whitespace or a parenthesis");
                 }
 
-
                 if (isEoF || wasQuotedString || isWhiteSpace || (isSExpressionToken && tokenStringBuilder.Length > 0))
                 {
-                    // Put the whitespace or expression token back so we leave right after the token - Then method
-                    // reading the next line knows it first has to read to the end of the current.
-                    // That way we do not need to deal with the difference from whitespaces at the
-                    // end of the line
+                    // Put the whitespace or expression token back so we leave right after the token
+                    // - Then method reading the next line knows it first has to read to the end of
+                    // the current. That way we do not need to deal with the difference from
+                    // whitespaces at the end of the line
                     peekedChar = read;
                     string tokenValue = tokenStringBuilder.ToString();
 
@@ -148,7 +140,6 @@ namespace KiCadDoxer.Renderer
                 {
                     throw new KiCadFileFormatException(this, lineNumber, columnNumber, "Unexpected End of File.");
                 }
-
 
                 char c = (char)read;
 
@@ -222,6 +213,13 @@ namespace KiCadDoxer.Renderer
                 throw new KiCadFileFormatException(this, CurrentLineNumber, 0, $"Unexpected End of File");
             }
 
+            return result;
+        }
+
+        public async Task<Token> ReadToken()
+        {
+            var result = await PeekToken();
+            peekedToken = null;
             return result;
         }
 
@@ -515,8 +513,8 @@ namespace KiCadDoxer.Renderer
                 temp['\t'] = true;
                 temp['\0'] = true;
 
-                // The original does not terat \n as a whitespace. Yes dear KiCad developers, it is annoying
-                // we do not have ocnsistent whitespaces, but DEAL WITH IT!
+                // The original does not terat \n as a whitespace. Yes dear KiCad developers, it is
+                // annoying we do not have ocnsistent whitespaces, but DEAL WITH IT!
                 temp['\n'] = true;
                 isWhiteSpaceLookup = temp;
             }

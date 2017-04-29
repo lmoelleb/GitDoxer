@@ -1,16 +1,13 @@
 ﻿using KiCadDoxer.Renderer;
-using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Threading;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Renderer.Tests
 {
     public class StringLineSource : LineSource
     {
-        string value;
+        private string value;
 
         public StringLineSource(TokenizerMode mode, string value)
             : base(CancellationToken.None)
