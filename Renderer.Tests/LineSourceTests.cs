@@ -45,6 +45,51 @@ namespace Renderer.Tests
         }
 
         [Fact]
+        public async Task ReadFollowingLineBackslashN()
+        {
+            using (var source = new StringLineSource(TokenizerMode.EeSchema, "\ntest\n"))
+            {
+                Assert.Equal("test", await source.ReadFollowingLine(false));
+            }
+        }
+
+        [Fact]
+        public async Task ReadFollowingLineBackslashNBackslashR()
+        {
+            using (var source = new StringLineSource(TokenizerMode.EeSchema, "\n\rtest\n"))
+            {
+                Assert.Empty(await source.ReadFollowingLine(false));
+            }
+        }
+
+        [Fact]
+        public async Task ReadFollowingLineBackslashR()
+        {
+            using (var source = new StringLineSource(TokenizerMode.EeSchema, "\rtest\r"))
+            {
+                Assert.Equal("test", await source.ReadFollowingLine(false));
+            }
+        }
+
+        [Fact]
+        public async Task ReadFollowingLineBackslashRBackslashN()
+        {
+            using (var source = new StringLineSource(TokenizerMode.EeSchema, "\r\ntest\r\n"))
+            {
+                Assert.Equal("test", await source.ReadFollowingLine(false));
+            }
+        }
+
+        [Fact]
+        public async Task ReadFollowingLineUntilEndOfFile()
+        {
+            using (var source = new StringLineSource(TokenizerMode.EeSchema, "\r\ntest"))
+            {
+                Assert.Equal("test", await source.ReadFollowingLine(false));
+            }
+        }
+
+        [Fact]
         public async Task ReadStringWithoutQuotes()
         {
             using (var source = new StringLineSource(TokenizerMode.SExpresionKiCad, "NoQuotes"))

@@ -173,6 +173,11 @@ namespace KiCadDoxer.Renderer
                     }
                     else
                     {
+                        if (tokenStringBuilder.Length == MaximumTokenSize)
+                        {
+                            throw new KiCadFileFormatException(this, tokenLineNumber, tokenColumnNumber, $"Maximum token length of {MaximumTokenSize} exceeded");
+                        }
+
                         tokenStringBuilder.Append(c);
                     }
                 }
@@ -192,6 +197,11 @@ namespace KiCadDoxer.Renderer
                     }
                     else
                     {
+                        if (tokenStringBuilder.Length == MaximumTokenSize)
+                        {
+                            throw new KiCadFileFormatException(this, tokenLineNumber, tokenColumnNumber, $"Maximum token length of {MaximumTokenSize} exceeded");
+                        }
+
                         tokenStringBuilder.Append(c);
                     }
                 }
@@ -203,6 +213,17 @@ namespace KiCadDoxer.Renderer
             string result = await Peek();
             peekedLine = null;
             return result;
+        }
+
+        public async Task<string> ReadFollowingLine(bool throwOnEndOfFile)
+        {
+            var current = await ReadUntilNextLine(throwOnEndOfFile);
+            if (!string.IsNullOrWhiteSpace(current))
+            {
+                throw new KiCadFileFormatException(current, "Expected end of line");
+            }
+
+            return await ReadUntilNextLine(throwOnEndOfFile);
         }
 
         public async Task<string> ReadNotEof()
@@ -297,6 +318,45 @@ namespace KiCadDoxer.Renderer
             }
 
             return result;
+        }
+
+        public async Task<Token> ReadUntilNextLine(bool throwOnEndOfFile)
+        {
+            tokenStringBuilder.Clear();
+            int tokenLineNumber = lineNumber;
+            int tokenColumnNumber = columnNumber;
+
+            while (true)
+            {
+                int read = await ReadChar();
+                if (read == '\r')
+                {
+                    // Consume any \n following \r.
+                    int following = await ReadChar();
+                    if (following != '\n')
+                    {
+                        peekedChar = following;
+                    }
+                }
+                if (read < 0 || read == '\r' || read == '\n')
+                {
+                    if (throwOnEndOfFile && read < 0)
+                    {
+                        throw new KiCadFileFormatException(this, tokenLineNumber, tokenColumnNumber, "Unexpected End of File.");
+                    }
+
+                    break;
+                }
+
+                if (tokenStringBuilder.Length == MaximumTokenSize)
+                {
+                    throw new KiCadFileFormatException(this, tokenLineNumber, tokenColumnNumber, $"Maximum token length of {MaximumTokenSize} exceeded");
+                }
+
+                tokenStringBuilder.Append((char)read);
+            }
+
+            return new Token(tokenStringBuilder.ToString(), this, tokenLineNumber, tokenColumnNumber);
         }
 
         protected abstract Task<TextReader> CreateReader(CancellationToken cancellationToken);
