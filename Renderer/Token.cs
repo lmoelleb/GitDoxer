@@ -9,22 +9,34 @@ namespace KiCadDoxer.Renderer
     {
         private static string[] validBooleanFalse = { "N", "0" };
         private static string[] validBooleanTrue = { "Y", "1" };
-        private LineSource lineSource;
         private string token;
+
+        public Token(TokenType type, LineSource lineSource, int characterNumber) : this(string.Empty, lineSource, characterNumber)
+        {
+            if (type == TokenType.Atom)
+            {
+                throw new ArgumentException("The type can't be Atom - use the string based constructor instead");
+            }
+
+            Type = type;
+        }
 
         public Token(string token, LineSource lineSource, int characterNumber)
         {
             this.token = token ?? string.Empty; // Might regret this one day... will deal with that... one day
-            this.lineSource = lineSource;
+            this.LineSource = lineSource;
             this.CharacterNumber = characterNumber;
             this.LineNumber = lineSource.CurrentLineNumber;
+            this.Type = TokenType.Atom;
         }
 
-        public int LineNumber { get; private set; }
+        public int CharacterNumber { get; }
 
-        internal int CharacterNumber { get; private set; }
+        public int LineNumber { get; }
 
-        internal LineSource LineSource => lineSource;
+        public TokenType Type { get; }
+
+        internal LineSource LineSource { get; }
 
         public char this[int index]
         {
