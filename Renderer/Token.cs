@@ -11,7 +11,7 @@ namespace KiCadDoxer.Renderer
         private static string[] validBooleanTrue = { "Y", "1" };
         private string token;
 
-        public Token(TokenType type, LineSource lineSource, int characterNumber) : this(string.Empty, lineSource, characterNumber)
+        public Token(TokenType type, LineSource lineSource, int lineNumber, int columnNumber) : this(string.Empty, lineSource, lineNumber, columnNumber)
         {
             if (type == TokenType.Atom)
             {
@@ -21,16 +21,16 @@ namespace KiCadDoxer.Renderer
             Type = type;
         }
 
-        public Token(string token, LineSource lineSource, int characterNumber)
+        public Token(string token, LineSource lineSource, int lineNumber, int columnNumber)
         {
             this.token = token ?? string.Empty; // Might regret this one day... will deal with that... one day
             this.LineSource = lineSource;
-            this.CharacterNumber = characterNumber;
-            this.LineNumber = lineSource.CurrentLineNumber;
+            this.ColumnNumber = columnNumber;
+            this.LineNumber = lineNumber;
             this.Type = TokenType.Atom;
         }
 
-        public int CharacterNumber { get; }
+        public int ColumnNumber { get; }
 
         public int LineNumber { get; }
 

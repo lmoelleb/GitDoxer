@@ -37,6 +37,7 @@ namespace KiCadDoxer.Renderer
             var cancellationToken = renderSettings.CancellationToken;
             using (lineSource = await renderSettings.CreateLineSource(cancellationToken))
             {
+                lineSource.Mode = TokenizerMode.EeSchema;
                 if (string.IsNullOrEmpty(lineSource.Url))
                 {
                     lineSource.Url = "KiCad Schematic (.SCH)"; // Not ideal, but better than not even knowing if it is in a library or what.
@@ -319,6 +320,7 @@ namespace KiCadDoxer.Renderer
         {
             var cancellationToken = SvgWriter.Current.RenderSettings.CancellationToken;
             var result = await SvgWriter.RenderSettings.CreateLibraryLineSource(name, cancellationToken);
+            result.Mode = TokenizerMode.EeSchema;
             if (string.IsNullOrEmpty(result.Url))
             {
                 result.Url = $"KiCad Library ({name})";

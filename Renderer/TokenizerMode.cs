@@ -4,10 +4,10 @@ using System.Text;
 
 namespace KiCadDoxer.Renderer
 {
-    public enum TokenType
+    public enum TokenizerMode
     {
-        Atom,
-        ExpressionOpen,
-        ExpressionClose,
+        Unspecified,
+        SExpresionKiCad,
+        EeSchema
     }
 }
