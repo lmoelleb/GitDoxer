@@ -12,7 +12,7 @@ namespace Renderer.Tests
         {
             using (var source = new StringLineSource(TokenizerMode.SExpresionKiCad, "\"t\"est"))
             {
-                await Assert.ThrowsAsync<KiCadFileFormatException>(async () => await source.ReadToken());
+                await Assert.ThrowsAsync<KiCadFileFormatException>(async () => await source.Read());
             }
         }
 
@@ -21,72 +21,63 @@ namespace Renderer.Tests
         {
             using (var source = new StringLineSource(TokenizerMode.SExpresionKiCad, "(\"test\")"))
             {
-                Assert.Equal(TokenType.ExpressionOpen, (await source.ReadToken()).Type);
-                Assert.Equal("test", await source.ReadToken());
-                Assert.Equal(TokenType.ExpressionClose, (await source.ReadToken()).Type);
+                Assert.Equal(TokenType.ExpressionOpen, (await source.Read()).Type);
+                Assert.Equal("test", await source.Read());
+                Assert.Equal(TokenType.ExpressionClose, (await source.Read()).Type);
             }
         }
+
+        [Fact]
+        public async Task ReadFullLineOfTextWithWhitespaces()
+        {
+            using (var source = new StringLineSource(TokenizerMode.SExpresionKiCad, " This is a test \nnot read"))
+            {
+                string text = await source.ReadTextWhileNot(TokenType.EndOfFile, TokenType.LineBreak);
+                Assert.Equal(" This is a test ", text);
+            }
+
+        }
+
+        [Fact]
+        public async Task ReadQuotedEmptyStringFollowedBySpace()
+        {
+            using (var source = new StringLineSource(TokenizerMode.SExpresionKiCad, "\"\" "))
+            {
+                Assert.Equal("", await source.Read());
+                Assert.Equal(TokenType.EndOfFile, (await source.Read()).Type);
+            }
+        }
+
 
         [Fact]
         public async Task ParenthesisAroundText()
         {
             using (var source = new StringLineSource(TokenizerMode.SExpresionKiCad, "(test)"))
             {
-                Assert.Equal(TokenType.ExpressionOpen, (await source.ReadToken()).Type);
-                Assert.Equal("test", await source.ReadToken());
-                Assert.Equal(TokenType.ExpressionClose, (await source.ReadToken()).Type);
+                Assert.Equal(TokenType.ExpressionOpen, (await source.Read()).Type);
+                Assert.Equal("test", await source.Read());
+                Assert.Equal(TokenType.ExpressionClose, (await source.Read()).Type);
             }
         }
 
         [Fact]
         public async Task ReadEmptyQuotedString()
         {
-            Assert.Equal("", await GetUnescapeString(@""));
+            Assert.Equal("", await GetUnescapedString(@""));
         }
 
         [Fact]
-        public async Task ReadFollowingLineBackslashN()
+        public async Task ReadQuotedStringWithSpaces()
         {
-            using (var source = new StringLineSource(TokenizerMode.EeSchema, "\ntest\n"))
-            {
-                Assert.Equal("test", await source.ReadFollowingLine(false));
-            }
+            Assert.Equal("t t", await GetUnescapedString(@"t t"));
         }
 
-        [Fact]
-        public async Task ReadFollowingLineBackslashNBackslashR()
-        {
-            using (var source = new StringLineSource(TokenizerMode.EeSchema, "\n\rtest\n"))
-            {
-                Assert.Empty(await source.ReadFollowingLine(false));
-            }
-        }
+
 
         [Fact]
-        public async Task ReadFollowingLineBackslashR()
+        public async Task ReadQuotedStringWithParenthesis()
         {
-            using (var source = new StringLineSource(TokenizerMode.EeSchema, "\rtest\r"))
-            {
-                Assert.Equal("test", await source.ReadFollowingLine(false));
-            }
-        }
-
-        [Fact]
-        public async Task ReadFollowingLineBackslashRBackslashN()
-        {
-            using (var source = new StringLineSource(TokenizerMode.EeSchema, "\r\ntest\r\n"))
-            {
-                Assert.Equal("test", await source.ReadFollowingLine(false));
-            }
-        }
-
-        [Fact]
-        public async Task ReadFollowingLineUntilEndOfFile()
-        {
-            using (var source = new StringLineSource(TokenizerMode.EeSchema, "\r\ntest"))
-            {
-                Assert.Equal("test", await source.ReadFollowingLine(false));
-            }
+            Assert.Equal("test (1)", await GetUnescapedString(@"test (1)"));
         }
 
         [Fact]
@@ -94,7 +85,7 @@ namespace Renderer.Tests
         {
             using (var source = new StringLineSource(TokenizerMode.SExpresionKiCad, "NoQuotes"))
             {
-                string token = await source.ReadToken();
+                string token = await source.Read();
                 Assert.Equal("NoQuotes", token);
             }
         }
@@ -102,9 +93,9 @@ namespace Renderer.Tests
         [Fact]
         public async Task ReadStringWithoutQuotesBetweenWhitespace()
         {
-            using (var source = new StringLineSource(TokenizerMode.SExpresionKiCad, "\r\n\t NoQuotes \t"))
+            using (var source = new StringLineSource(TokenizerMode.SExpresionKiCad, "\r \t NoQuotes \t"))
             {
-                string token = await source.ReadToken();
+                string token = await source.Read();
                 Assert.Equal("NoQuotes", token);
             }
         }
@@ -112,13 +103,13 @@ namespace Renderer.Tests
         [Fact]
         public async Task UnescapeDoubleBlackslash()
         {
-            Assert.Equal("\\", await GetUnescapeString(@"\\"));
+            Assert.Equal("\\", await GetUnescapedString(@"\\"));
         }
 
         [Fact]
         public async Task UnescapeDoubleBlackslashWithTrailingCharacter()
         {
-            Assert.Equal("\\n", await GetUnescapeString(@"\\n"));
+            Assert.Equal("\\n", await GetUnescapedString(@"\\n"));
         }
 
         [Fact]
@@ -126,43 +117,43 @@ namespace Renderer.Tests
         {
             // TODO: This should fail according to the C standard, so check with KiCad what it will
             //       actually do!
-            Assert.Equal(" a", await GetUnescapeString(@"\U00000020a"));
+            Assert.Equal(" a", await GetUnescapedString(@"\U00000020a"));
         }
 
         [Fact]
         public async Task UnescapeNewLine()
         {
-            Assert.Equal("\n", await GetUnescapeString(@"\n"));
+            Assert.Equal("\n", await GetUnescapedString(@"\n"));
         }
 
         [Fact]
         public async Task UnescapeOctalSingleDigitFollowedByLetter()
         {
-            Assert.Equal("\0a", await GetUnescapeString(@"\0a"));
+            Assert.Equal("\0a", await GetUnescapedString(@"\0a"));
         }
 
         [Fact]
         public async Task UnescapeOctalThreeDigits()
         {
-            Assert.Equal(" ", await GetUnescapeString(@"\040"));
+            Assert.Equal(" ", await GetUnescapedString(@"\040"));
         }
 
         [Fact]
         public async Task UnescapeOctalThreeDigitsFollowedByDigit()
         {
-            Assert.Equal(" 1", await GetUnescapeString(@"\0401"));
+            Assert.Equal(" 1", await GetUnescapedString(@"\0401"));
         }
 
         [Fact]
         public async Task UnescapeOctalTwoDigits()
         {
-            Assert.Equal(" ", await GetUnescapeString(@"\40"));
+            Assert.Equal(" ", await GetUnescapedString(@"\40"));
         }
 
         [Fact]
         public async Task UnescapeOctalTwoDigitsFollowedByLetter()
         {
-            Assert.Equal(" a", await GetUnescapeString(@"\40a"));
+            Assert.Equal(" a", await GetUnescapedString(@"\40a"));
         }
 
         [Fact]
@@ -170,7 +161,7 @@ namespace Renderer.Tests
         {
             // TODO: This should fail according to the C standard, so check with KiCad what it will
             //       actually do!
-            Assert.Equal(" a", await GetUnescapeString(@"\u0020a"));
+            Assert.Equal(" a", await GetUnescapedString(@"\u0020a"));
         }
 
         [Fact]
@@ -178,7 +169,7 @@ namespace Renderer.Tests
         {
             // TODO: This should fail according to the C standard, so check with KiCad what it will
             //       actually do!
-            Assert.Equal("\uD852\uDF62", await GetUnescapeString(@"\U00024B62"));
+            Assert.Equal("\uD852\uDF62", await GetUnescapedString(@"\U00024B62"));
         }
 
         [Fact]
@@ -186,7 +177,7 @@ namespace Renderer.Tests
         {
             // TODO: This should fail according to the C standard, so check with KiCad what it will
             //       actually do!
-            Assert.Equal(" ", await GetUnescapeString(@"\x20"));
+            Assert.Equal(" ", await GetUnescapedString(@"\x20"));
         }
 
         [Fact]
@@ -194,14 +185,16 @@ namespace Renderer.Tests
         {
             // TODO: This should fail according to the C standard, so check with KiCad what it will
             //       actually do!
-            Assert.Equal(" a", await GetUnescapeString(@"\x20a"));
+            Assert.Equal(" a", await GetUnescapedString(@"\x20a"));
         }
 
-        private async Task<string> GetUnescapeString(string value)
+
+
+        private async Task<string> GetUnescapedString(string escapedString)
         {
-            using (var source = new StringLineSource(TokenizerMode.SExpresionKiCad, "\"" + value + "\""))
+            using (var source = new StringLineSource(TokenizerMode.SExpresionKiCad, "\"" + escapedString + "\""))
             {
-                return await source.ReadToken();
+                return await source.Read();
             }
         }
     }

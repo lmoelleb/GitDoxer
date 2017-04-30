@@ -1,33 +1,35 @@
 ﻿using KiCadDoxer.Renderer.Exceptions;
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 
 namespace KiCadDoxer.Renderer
 {
+    // TODO: Refactor so tokens are unescaped in here, not in the line source.
+
     public class Token
     {
         private static string[] validBooleanFalse = { "N", "0" };
         private static string[] validBooleanTrue = { "Y", "1" };
-        private string token;
+        private string unescapedTokenValue;
+        public string PreceedingWhiteSpace { get; internal set; }
+        public string EscapedTokenValue { get; }
 
-        public Token(TokenType type, LineSource lineSource, int lineNumber, int columnNumber) : this(string.Empty, lineSource, lineNumber, columnNumber)
+        internal Token(string preceedingWhiteSpace, string escapedTokenValue, TokenType type, LineSource lineSource, int lineNumber, int columnNumber) : this(preceedingWhiteSpace, escapedTokenValue, GetTextFromTokenType(type), lineSource, lineNumber, columnNumber)
         {
-            if (type == TokenType.Atom)
-            {
-                throw new ArgumentException("The type can't be Atom - use the string based constructor instead");
-            }
-
             Type = type;
         }
 
-        public Token(string token, LineSource lineSource, int lineNumber, int columnNumber)
+        internal Token(string preceedingWhiteSpace, string escapedTokenValue, string unescapedTokenValue, LineSource lineSource, int lineNumber, int columnNumber)
         {
-            this.token = token ?? string.Empty; // Might regret this one day... will deal with that... one day
+            this.EscapedTokenValue = escapedTokenValue ?? string.Empty;
+            this.unescapedTokenValue = unescapedTokenValue ?? string.Empty; // Might regret this one day... will deal with that... one day
             this.LineSource = lineSource;
             this.ColumnNumber = columnNumber;
             this.LineNumber = lineNumber;
             this.Type = TokenType.Atom;
+            this.PreceedingWhiteSpace = preceedingWhiteSpace;
         }
 
         public int ColumnNumber { get; }
@@ -42,7 +44,7 @@ namespace KiCadDoxer.Renderer
         {
             get
             {
-                return token[index];
+                return unescapedTokenValue[index];
             }
         }
 
@@ -73,17 +75,17 @@ namespace KiCadDoxer.Renderer
                 return null;
             }
 
-            return t.ToString();
+            return t.unescapedTokenValue;
         }
 
         public bool ToBoolean()
         {
-            if (validBooleanTrue.Contains(token))
+            if (validBooleanTrue.Contains(unescapedTokenValue))
             {
                 return true;
             }
 
-            if (validBooleanFalse.Contains(token))
+            if (validBooleanFalse.Contains(unescapedTokenValue))
             {
                 return false;
             }
@@ -93,18 +95,18 @@ namespace KiCadDoxer.Renderer
 
         public char ToChar()
         {
-            if (token.Length != 1)
+            if (unescapedTokenValue.Length != 1)
             {
                 throw new KiCadFileFormatException(this, $"Expected a single character. Got \"{ToString()}\".");
             }
 
-            return token[0];
+            return unescapedTokenValue[0];
         }
 
         public double ToDouble()
         {
             double result;
-            if (!double.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out result))
+            if (!double.TryParse(unescapedTokenValue, NumberStyles.Float, CultureInfo.InvariantCulture, out result))
             {
                 throw new KiCadFileFormatException(this, $"Expected a floating point number. Got \"{ToString()}\".");
             }
@@ -115,7 +117,7 @@ namespace KiCadDoxer.Renderer
         public T ToEnum<T>() where T : struct
         {
             T result;
-            if (!Enum.TryParse(token, true, out result))
+            if (!Enum.TryParse(unescapedTokenValue, true, out result))
             {
                 throw new KiCadFileFormatException(this, $"Expected one of the values {string.Join(", ", Enum.GetNames(typeof(T)))}. Got \"{ToString()}\".");
             }
@@ -126,7 +128,7 @@ namespace KiCadDoxer.Renderer
         public T ToEnumOrDefault<T>(T defaultValue) where T : struct
         {
             T result;
-            if (!Enum.TryParse(token, true, out result))
+            if (!Enum.TryParse(unescapedTokenValue, true, out result))
             {
                 result = defaultValue;
             }
@@ -137,7 +139,7 @@ namespace KiCadDoxer.Renderer
         public int ToInt()
         {
             int result;
-            if (!int.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out result))
+            if (!int.TryParse(unescapedTokenValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out result))
             {
                 throw new KiCadFileFormatException(this, $"Expected an integer number. Got \"{ToString()}\".");
             }
@@ -147,12 +149,33 @@ namespace KiCadDoxer.Renderer
 
         public string ToLowerInvariant()
         {
-            return token.ToLowerInvariant();
+            return unescapedTokenValue.ToLowerInvariant();
         }
 
         public override string ToString()
         {
-            return token;
+            return EscapedTokenValue;
+        }
+
+        private static string GetTextFromTokenType(TokenType type)
+        {
+            switch (type)
+            {
+                case TokenType.EndOfFile:
+                    return "";
+
+                case TokenType.ExpressionClose:
+                    return ")";
+
+                case TokenType.ExpressionOpen:
+                    return "(";
+
+                case TokenType.LineBreak:
+                    return "\n";
+
+                default:
+                    throw new NotSupportedException($"Not supported for TokenType{type}");
+            }
         }
     }
 }

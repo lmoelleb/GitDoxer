@@ -5,5 +5,7 @@
         Atom,
         ExpressionOpen,
         ExpressionClose,
+        LineBreak,
+        EndOfFile
     }
 }
