@@ -508,7 +508,7 @@ namespace KiCadDoxer.Renderer
                     {
                         uint decode = uint.Parse(escapedCharacterBuilder.ToString(2, escapedCharacterBuilder.Length - 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
 
-                        bool needsSurregate = escapedCharacterBuilder[1] == 'U' && decode > 0x10000;
+                        bool needsSurregate = escapedCharacterBuilder[1] == 'U' && decode >= 0x10000;
                         escapedCharacterBuilder.Clear();
 
                         if (needsSurregate)
