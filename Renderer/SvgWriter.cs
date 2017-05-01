@@ -2,7 +2,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
 
@@ -11,37 +10,27 @@ namespace KiCadDoxer.Renderer
     public class SvgWriter : IDisposable
     {
         private const string SvgNs = "http://www.w3.org/2000/svg";
-        private static AsyncLocal<SvgWriter> current = new AsyncLocal<SvgWriter>();
         private bool isClosed;
         private bool isRootElementWritten;
         private Stack<ElementStackEntry> stack = new Stack<ElementStackEntry>();
         private Lazy<Task<XmlWriter>> xmlWriterCreator;
 
-        public SvgWriter(SchematicRenderSettings renderSettings)
+        public SvgWriter()
         {
-            if (current.Value != null)
-            {
-                throw new NotSupportedException("The current SvgWriter can't be changed once it is created in a sync call context");
-            }
-
             XmlWriterSettings xmlWriterSettings = new XmlWriterSettings
             {
                 Async = true,
-                Indent = renderSettings.PrettyPrint
+                Indent = RenderContext.Current.PrettyPrint
             };
 
-            this.xmlWriterCreator = new Lazy<Task<XmlWriter>>(async () => XmlWriter.Create(await renderSettings.CreateOutputWriter(renderSettings.CancellationToken), xmlWriterSettings));
-            this.RenderSettings = renderSettings;
-            current.Value = this;
+            this.xmlWriterCreator = new Lazy<Task<XmlWriter>>(async () => XmlWriter.Create(
+                await RenderContext.Current.CreateOutputWriter(RenderContext.Current.CancellationToken), xmlWriterSettings)
+            );
         }
-
-        public static SvgWriter Current => current.Value;
 
         public bool IsClosed => isClosed;
 
         public bool IsRootElementWritten => isRootElementWritten;
-
-        public SchematicRenderSettings RenderSettings { get; }
 
         public async Task CloseAsync()
         {
@@ -101,10 +90,10 @@ namespace KiCadDoxer.Renderer
             if (name == "stroke-width" && value == "0")
             {
                 // KiCad use 0 to determine default length... nice....
-                value = this.RenderSettings.DefaultStrokeWidth.ToString(CultureInfo.InvariantCulture);
+                value = RenderContext.Current.DefaultStrokeWidth.ToString(CultureInfo.InvariantCulture);
             }
 
-            if (name == "class" && !RenderSettings.AddClasses)
+            if (name == "class" && !RenderContext.Current.AddClasses)
             {
                 return;
             }
@@ -144,7 +133,7 @@ namespace KiCadDoxer.Renderer
             var parent = stack.PeekOrDefault();
             await xmlWriter.WriteStartElementAsync(null, name, SvgNs);
 
-            if (stack.Count == 0 && RenderSettings.AddXlinkToSheets)
+            if (stack.Count == 0 && RenderContext.Current.AddXlinkToSheets)
             {
                 await xmlWriter.WriteAttributeStringAsync("xmlns", "xlink", null, "http://www.w3.org/1999/xlink");
             }
@@ -179,7 +168,7 @@ namespace KiCadDoxer.Renderer
 
             await WriteAttributeStringAsync("stroke-linecap", "round");
             await WriteAttributeStringAsync("stroke-linejoin", "round");
-            await WriteAttributeStringAsync("stroke-width", SvgWriter.Current.RenderSettings.DefaultStrokeWidth);
+            await WriteAttributeStringAsync("stroke-width", RenderContext.Current.DefaultStrokeWidth);
             await WriteAttributeStringAsync("fill", "none");
             await WriteAttributeStringAsync("class", "kicad schematics");
         }

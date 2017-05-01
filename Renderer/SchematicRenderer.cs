@@ -30,12 +30,15 @@ namespace KiCadDoxer.Renderer
         private HashSet<(int, int)> noConnectPositions = new HashSet<(int, int)>();
         private HashSet<(int, int)> wirePositions = new HashSet<(int, int)>();
 
-        private SvgWriter SvgWriter => SvgWriter.Current;
+        private SvgWriter SvgWriter => RenderContext.SvgWriter;
+        private RenderContext RenderContext => RenderContext.Current;
 
-        public async Task HandleSchematic(SchematicRenderSettings renderSettings)
+        public async Task HandleSchematic(RenderContext renderContext)
         {
-            var cancellationToken = renderSettings.CancellationToken;
-            using (lineSource = await renderSettings.CreateLineSource(cancellationToken))
+            RenderContext.Current = renderContext;
+            
+            var cancellationToken = renderContext.CancellationToken;
+            using (lineSource = await renderContext.CreateLineSource(cancellationToken))
             {
                 lineSource.Mode = TokenizerMode.EeSchema;
                 if (string.IsNullOrEmpty(lineSource.Url))
@@ -43,7 +46,7 @@ namespace KiCadDoxer.Renderer
                     lineSource.Url = "KiCad Schematic (.SCH)"; // Not ideal, but better than not even knowing if it is in a library or what.
                 }
 
-                using (var writer = new SvgWriter(renderSettings))
+                using (renderContext.SvgWriter = new SvgWriter())
                 {
                     try
                     {
@@ -237,7 +240,7 @@ namespace KiCadDoxer.Renderer
                     }
                     catch (Exception ex)
                     {
-                        if (!await SvgWriter.Current.RenderSettings.HandleException(ex))
+                        if (!await RenderContext.HandleException(ex))
                         {
                             throw;
                         }
@@ -334,8 +337,8 @@ namespace KiCadDoxer.Renderer
 
         private async Task<LineSource> CreateLibraryLineSource(string name)
         {
-            var cancellationToken = SvgWriter.Current.RenderSettings.CancellationToken;
-            var result = await SvgWriter.RenderSettings.CreateLibraryLineSource(name + ".lib", cancellationToken);
+            var cancellationToken = RenderContext.CancellationToken;
+            var result = await RenderContext.CreateLibraryLineSource(name + ".lib", cancellationToken);
             result.Mode = TokenizerMode.EeSchema;
             if (string.IsNullOrEmpty(result.Url))
             {
@@ -348,7 +351,7 @@ namespace KiCadDoxer.Renderer
         // lifted from https://github.com/KiCad/kicad-source-mirror/blob/master/eeschema/sch_text.cpp (SCH_HIERLABEL::GetSchematicTextOffset)
         private (double X, double Y) GetSchematicTextOffset(double lineWidth, int orientation)
         {
-            double offset = TxtMargin + (lineWidth + SvgWriter.RenderSettings.DefaultStrokeWidth) / 2;
+            double offset = TxtMargin + (lineWidth + RenderContext.DefaultStrokeWidth) / 2;
 
             double x = 0;
             double y = 0;
@@ -378,7 +381,7 @@ namespace KiCadDoxer.Renderer
         // lifted from https://github.com/KiCad/kicad-source-mirror/blob/master/eeschema/sch_text.cpp (SCH_HIERLABEL::GetSchematicTextOffset)
         private (double X, double Y) GetSchematicTextOffsetHLabel(double lineWidth, double glyphWidth, int orientation)
         {
-            double width = Math.Max(lineWidth, SvgWriter.RenderSettings.DefaultStrokeWidth);
+            double width = Math.Max(lineWidth, RenderContext.DefaultStrokeWidth);
             double ii = glyphWidth + TxtMargin + width;
 
             double x = 0;
@@ -587,7 +590,7 @@ namespace KiCadDoxer.Renderer
                 return;
             }
 
-            ComponentFieldRenderMode renderMode = SvgWriter.RenderSettings.ShowComponentField(fieldTokens[1]);
+            ComponentFieldRenderMode renderMode = RenderContext.ShowComponentField(fieldTokens[1]);
 
             if (renderMode == ComponentFieldRenderMode.Hide)
             {
@@ -663,7 +666,7 @@ namespace KiCadDoxer.Renderer
             angle += placement.Angle;
 
             string classNames = $"kicad schematics component {placement.Name.ToLowerInvariant()} {placement.Reference.ToLowerInvariant()} component-field-{fieldTokens[1]}";
-            await StrokeFont.DrawText(text, position.X, position.Y, size, stroke, SvgWriter.RenderSettings.DefaultStrokeWidth, isBold, isItalic, angle, horizontalJustify, verticalJustify, classNames);
+            await StrokeFont.DrawText(text, position.X, position.Y, size, stroke, RenderContext.DefaultStrokeWidth, isBold, isItalic, angle, horizontalJustify, verticalJustify, classNames);
         }
 
         private async Task HandleComponentFromLibrary(LineSource libraryLineSource)
@@ -709,7 +712,7 @@ namespace KiCadDoxer.Renderer
 
         private async Task HandleComponentLibrary(LineSource libraryLineSource)
         {
-            var cancellationToken = SvgWriter.Current.RenderSettings.CancellationToken;
+            var cancellationToken = RenderContext.CancellationToken;
             Token token;
             while (true)
             {
@@ -750,7 +753,7 @@ namespace KiCadDoxer.Renderer
 
             bool isHidden = pinType == "N";
 
-            if (isHidden && SvgWriter.RenderSettings.HiddenPinRenderMode == HiddenPinRenderMode.Hide)
+            if (isHidden && RenderContext.HiddenPinRenderMode == HiddenPinRenderMode.Hide)
             {
                 return;
             }
@@ -817,7 +820,7 @@ namespace KiCadDoxer.Renderer
 
             var pinLineStart = placePin(0, 0);
 
-            if (isHidden && SvgWriter.RenderSettings.HiddenPinRenderMode == HiddenPinRenderMode.ShowIfConnectedToWire)
+            if (isHidden && RenderContext.HiddenPinRenderMode == HiddenPinRenderMode.ShowIfConnectedToWire)
             {
                 // Show if connected, and not named the same as the component - this hide the pin
                 // (and more importantly it's name and number) from for example VCC and Ground
@@ -1004,11 +1007,11 @@ namespace KiCadDoxer.Renderer
             }
 
             bool drawName = !string.IsNullOrEmpty(name) && drawPinNames;
-            bool drawPinNumber = !string.IsNullOrEmpty(pinNumber) && drawPinNumbers && SvgWriter.RenderSettings.ShowPinNumbers;
+            bool drawPinNumber = !string.IsNullOrEmpty(pinNumber) && drawPinNumbers && RenderContext.ShowPinNumbers;
             double numberTextSize = tokens[8];
             double nameTextSize = tokens[7];
 
-            var defaultLineThickness = SvgWriter.RenderSettings.DefaultStrokeWidth;
+            var defaultLineThickness = RenderContext.DefaultStrokeWidth;
 
             if (length > 0)
             {
@@ -1194,7 +1197,7 @@ namespace KiCadDoxer.Renderer
 
         private async Task<bool> HandleETagHeaders()
         {
-            var cancellationToken = SvgWriter.Current.RenderSettings.CancellationToken;
+            var cancellationToken = RenderContext.CancellationToken;
 
             // Bad naming or architecture (probably both). Returning true means rendering is no
             // longer needed - we returned NotModified or something similar
@@ -1209,13 +1212,13 @@ namespace KiCadDoxer.Renderer
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (etagHeaderValue == SvgWriter.RenderSettings.GetRequestETagHeaderValue())
+            if (etagHeaderValue == RenderContext.GetRequestETagHeaderValue())
             {
-                continueRendering = !await SvgWriter.RenderSettings.HandleMatchingETags(cancellationToken);
+                continueRendering = !await RenderContext.HandleMatchingETags(cancellationToken);
             }
             else
             {
-                SvgWriter.RenderSettings.SetResponseEtagHeaderValue(etagHeaderValue);
+                RenderContext.SetResponseEtagHeaderValue(etagHeaderValue);
             }
 
             return continueRendering;
@@ -1223,7 +1226,7 @@ namespace KiCadDoxer.Renderer
 
         private async Task HandleLibraryReference(Token firstToken)
         {
-            var cancellationToken = SvgWriter.Current.RenderSettings.CancellationToken;
+            var cancellationToken = RenderContext.CancellationToken;
             cancellationToken.ThrowIfCancellationRequested();
             string remaining = await lineSource.ReadTextWhileNot(TokenType.EndOfFile, TokenType.LineBreak);
             string libLine = ((string)firstToken).Substring(5) + remaining;
@@ -1296,11 +1299,11 @@ namespace KiCadDoxer.Renderer
                 }
                 else if (tokens[0] == "F0")
                 {
-                    await StrokeFont.DrawText("Sheet: " + tokens[1], x, y + GetSchematicTextOffset(SvgWriter.RenderSettings.DefaultStrokeWidth, 0).Y, tokens[2], "rgb(0,132,132)", 0, false, false, 0, TextHorizontalJustify.Left, TextVerticalJustify.Bottom, "sheet-name");
+                    await StrokeFont.DrawText("Sheet: " + tokens[1], x, y + GetSchematicTextOffset(RenderContext.DefaultStrokeWidth, 0).Y, tokens[2], "rgb(0,132,132)", 0, false, false, 0, TextHorizontalJustify.Left, TextVerticalJustify.Bottom, "sheet-name");
                 }
                 else if (tokens[0] == "F1")
                 {
-                    await StrokeFont.DrawText("File: " + tokens[1], x, y + height - GetSchematicTextOffset(SvgWriter.RenderSettings.DefaultStrokeWidth, 0).Y, tokens[2], "rgb(132,132,0)", 0, false, false, 0, TextHorizontalJustify.Left, TextVerticalJustify.Top, "file-name");
+                    await StrokeFont.DrawText("File: " + tokens[1], x, y + height - GetSchematicTextOffset(RenderContext.DefaultStrokeWidth, 0).Y, tokens[2], "rgb(132,132,0)", 0, false, false, 0, TextHorizontalJustify.Left, TextVerticalJustify.Top, "file-name");
                 }
                 else if (tokens[0][0] == 'F')
                 {
@@ -1407,7 +1410,7 @@ namespace KiCadDoxer.Renderer
             // Consider refactoring to a class hierarchy like the KiCad source has it (though they
             // still stuff it in one file...)
 
-            double strokeWidth = SvgWriter.RenderSettings.DefaultStrokeWidth;
+            double strokeWidth = RenderContext.DefaultStrokeWidth;
             bool isBold = false;
             string stroke = "rgb(192, 64, 64)"; // Hopefully pink enough I will notice it has not been set :)
             double angle = 0;

@@ -5,8 +5,37 @@ using System.Threading.Tasks;
 
 namespace KiCadDoxer.Renderer
 {
-    public abstract class SchematicRenderSettings
+    public abstract class RenderContext
     {
+        private static AsyncLocal<RenderContext> current = new AsyncLocal<RenderContext>();
+
+
+        public RenderContext()
+        {
+        }
+
+        public static RenderContext Current
+        {
+            get
+            {
+                if (current.Value == null)
+                {
+                    throw new InvalidOperationException("Current must be set before it can be accessed. Are you sure it was not set on a different call context (not an ansestor of this task)");
+                }
+
+                return current.Value;
+            }
+            internal set
+            {
+                if (current.Value != null && current.Value != value)
+                {
+                    throw new InvalidOperationException("Current can only be set once on this call context");
+                }
+                current.Value = value;
+            }
+        }
+
+
         public virtual bool AddClasses => false;
 
         public virtual bool AddXlinkToSheets => false;
@@ -45,5 +74,10 @@ namespace KiCadDoxer.Renderer
         {
             return ComponentFieldRenderMode.Default;
         }
+
+        // Considered creating it on demand in here, but I want to manage the disposing of it differently
+        // as the context is created by the assembly calling the renderer, while the SvgWriter is created
+        // from within this assembly and needs to be disposed as we finish rendering.
+        public SvgWriter SvgWriter { get; internal set; }
     }
 }

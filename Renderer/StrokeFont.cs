@@ -162,7 +162,7 @@ namespace KiCadDoxer.Renderer
                 offsetY = Math.Round(offsetY);
             }
 
-            var svgWriter = SvgWriter.Current;
+            var svgWriter = RenderContext.Current.SvgWriter;
 
             await svgWriter.WriteStartElementAsync("g");
             List<string> transforms = new List<string>();
@@ -237,7 +237,7 @@ namespace KiCadDoxer.Renderer
         {
             var fontData = await fontDataLoader.Value;
 
-            var svgWriter = SvgWriter.Current;
+            var svgWriter = RenderContext.Current.SvgWriter;
 
             await svgWriter.WriteCommentAsync(text);
             double? overbarStartPosition = null;

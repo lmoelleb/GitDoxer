@@ -12,18 +12,17 @@ using System.Threading.Tasks;
 
 namespace KiCadDoxer.Server
 {
-    public class SchematicRenderSettingsHttpRequest : SchematicRenderSettings
+    public class HttpRenderContext : RenderContext
     {
         private static readonly string[] boolTrueStrings = new[] { "y", "yes", "1", "t", "true" };
         private bool addClasses;
-        private bool addXlinkToSheets;
         private HttpContext context;
         private HiddenPinRenderMode? hiddenPins;
         private bool prettyPrint;
         private bool showPinNumbers;
         private Uri uri;
 
-        public SchematicRenderSettingsHttpRequest(HttpContext context)
+        public HttpRenderContext(HttpContext context)
         {
             this.context = context;
             var request = context.Request;
@@ -68,8 +67,6 @@ namespace KiCadDoxer.Server
 
             showPinNumbers = ((string)request.Query["pinnumbers"] ?? string.Empty).ToLowerInvariant() != "hidden";
 
-            addXlinkToSheets = boolTrueStrings.Contains(((string)request.Query["xlinksheets"] ?? string.Empty).ToLowerInvariant());
-
             prettyPrint = boolTrueStrings.Contains(((string)request.Query["prettyprint"] ?? string.Empty).ToLowerInvariant());
 
             addClasses = boolTrueStrings.Contains(((string)request.Query["classes"] ?? string.Empty).ToLowerInvariant());
@@ -81,8 +78,6 @@ namespace KiCadDoxer.Server
         }
 
         public override bool AddClasses => addClasses;
-
-        public override bool AddXlinkToSheets => addXlinkToSheets;
 
         public override HiddenPinRenderMode HiddenPinRenderMode => hiddenPins ?? base.HiddenPinRenderMode;
 
@@ -158,7 +153,7 @@ namespace KiCadDoxer.Server
                     // to the xml writer
                     try
                     {
-                        SvgWriter writer = SvgWriter.Current;
+                        SvgWriter writer = SvgWriter;
                         if (writer.IsRootElementWritten && !writer.IsClosed)
                         {
                             await writer.WriteStartElementAsync("text");

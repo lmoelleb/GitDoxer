@@ -22,7 +22,7 @@ namespace KiCadDoxer.Server
             app.UseResponseCompression();
 
             app.MapWhen(
-                context => SchematicRenderSettingsHttpRequest.CanHandleContext(context),
+                context => HttpRenderContext.CanHandleContext(context),
                 appBranch => appBranch.UseSchematicMiddleware());
         }
 
