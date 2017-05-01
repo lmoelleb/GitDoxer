@@ -4,6 +4,8 @@
     <TargetFramework>netcoreapp1.1</TargetFramework>
     <AssemblyName>KiCadDoxer.Renderer</AssemblyName>
     <RootNamespace>KiCadDoxer.Renderer</RootNamespace>
+    <SignAssembly>False</SignAssembly>
+    <AssemblyOriginatorKeyFile>NonSecretSigningFile.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
 
   <ItemGroup>

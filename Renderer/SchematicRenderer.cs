@@ -37,6 +37,7 @@ namespace KiCadDoxer.Renderer
             var cancellationToken = renderSettings.CancellationToken;
             using (lineSource = await renderSettings.CreateLineSource(cancellationToken))
             {
+                lineSource.Mode = TokenizerMode.EeSchema;
                 if (string.IsNullOrEmpty(lineSource.Url))
                 {
                     lineSource.Url = "KiCad Schematic (.SCH)"; // Not ideal, but better than not even knowing if it is in a library or what.
@@ -46,26 +47,35 @@ namespace KiCadDoxer.Renderer
                 {
                     try
                     {
-                        string line;
+                        Token firstToken;
                         ComponentPlacement currentComponentPlacement = null;
 
-                        var currentComponentFields = new List<Token[]>();
+                        var currentComponentFields = new List<IList<Token>>();
 
                         // It is not possible to write the component reference right away, as it
                         // needs a letter appended if it is a multiunit component
                         // - something we will not know before reading the component library. So we
                         // must render those later :(
 
-                        var componentReferenceFieldsToRenderAfterLibraryLoad = new List<(ComponentPlacement Placement, Token[] Tokens)>();
+                        var componentReferenceFieldsToRenderAfterLibraryLoad = new List<(ComponentPlacement Placement, IList<Token> Tokens)>();
 
-                        while ((line = await lineSource.Peek()) != null)
+                        // TODO: Clean up this royal mess - some helper class or two would probably
+                        //       help reducing the size of this
+                        bool skipToNextLine = false;
+                        while (true)
                         {
+                            await lineSource.SkipEmptyLines();
+                            firstToken = await lineSource.Read(TokenType.Atom, TokenType.EndOfFile);
                             cancellationToken.ThrowIfCancellationRequested();
 
                             if (currentComponentPlacement != null)
                             {
-                                var tokens = await lineSource.ReadTokensNotEof();
-                                switch ((string)tokens.First())
+                                // TODO: Stop feeding these into a list and deal with them one by one
+                                List<Token> tokens = new List<Token>();
+                                tokens.Add(firstToken);
+                                tokens.AddRange(await lineSource.ReadAllTokensUntilEndOfLine());
+
+                                switch ((string)firstToken)
                                 {
                                     case "L":
                                         currentComponentPlacement.Name = tokens[1];
@@ -74,7 +84,7 @@ namespace KiCadDoxer.Renderer
 
                                     case "U":
                                         currentComponentPlacement.UnitIndex = tokens[1];
-                                        currentComponentPlacement.ConvertIndex = tokens[2]; // Not 100% this is the convert, but can't see what else is.
+                                        currentComponentPlacement.ConvertIndex = tokens[2];
                                         break;
 
                                     case "P":
@@ -102,9 +112,10 @@ namespace KiCadDoxer.Renderer
                                         // Look the other way, this is going to be ugly :)
                                         if (!knownMultiUnit && tokens[1] == "0")
                                         {
-                                            // We do not know at this moment if we need to add a unit
-                                            // identifier - we need to defer rendering of the field,
-                                            // I hope the server has 1KB memory ready for this :)
+                                            // This is the reference field, for example U304A. We do
+                                            // not know at this moment if we need to add a unit
+                                            // identifier - we need to defer rendering of the field.
+
                                             componentReferenceFieldsToRenderAfterLibraryLoad.Add((currentComponentPlacement, tokens));
                                         }
                                         else
@@ -116,7 +127,7 @@ namespace KiCadDoxer.Renderer
                                     case "1":
                                     case "0":
                                     case "-1":
-                                        if (tokens.Length == 4)
+                                        if (tokens.Count == 4)
                                         {
                                             // Assume rotation matrix, might need something more
                                             // precise in the future :)
@@ -141,17 +152,20 @@ namespace KiCadDoxer.Renderer
                                         break;
                                 }
                             }
-                            else if (line.StartsWith("LIBS:"))
+                            else if (firstToken.Type == TokenType.EndOfFile)
                             {
-                                await HandleLibraryReference();
+                                break;
                             }
-                            else if (line.StartsWith("$Comp"))
+                            else if (((string)firstToken).StartsWith("LIBS:"))
+                            {
+                                await HandleLibraryReference(firstToken);
+                            }
+                            else if (firstToken == "$Comp")
                             {
                                 currentComponentPlacement = new ComponentPlacement();
                                 componentPlacements.Add(currentComponentPlacement);
-                                await lineSource.Read();
                             }
-                            else if (line.StartsWith("$Descr"))
+                            else if (firstToken == "$Descr")
                             {
                                 if (!await InitializeRendering())
                                 {
@@ -159,7 +173,7 @@ namespace KiCadDoxer.Renderer
                                 }
                                 await HandleDescription();
                             }
-                            else if (line.StartsWith("Wire"))
+                            else if (firstToken == "Wire")
                             {
                                 if (!await InitializeRendering())
                                 {
@@ -167,7 +181,7 @@ namespace KiCadDoxer.Renderer
                                 }
                                 await HandleWire();
                             }
-                            else if (line.StartsWith("Connection"))
+                            else if (firstToken == "Connection")
                             {
                                 if (!await InitializeRendering())
                                 {
@@ -175,7 +189,7 @@ namespace KiCadDoxer.Renderer
                                 }
                                 await HandleConnection();
                             }
-                            else if (line.StartsWith("NoConn"))
+                            else if (firstToken == "NoConn")
                             {
                                 if (!await InitializeRendering())
                                 {
@@ -183,15 +197,16 @@ namespace KiCadDoxer.Renderer
                                 }
                                 await HandleNoConnection();
                             }
-                            else if (line.StartsWith("Text"))
+                            else if (firstToken == "Text")
                             {
                                 if (!await InitializeRendering())
                                 {
                                     return; // Done - NotModified returned to the caller!
                                 }
                                 await HandleText();
+                                skipToNextLine = false;
                             }
-                            else if (line.StartsWith("$Sheet"))
+                            else if (firstToken == "$Sheet")
                             {
                                 if (!await InitializeRendering())
                                 {
@@ -199,11 +214,13 @@ namespace KiCadDoxer.Renderer
                                 }
                                 await HandleSheet();
                             }
-                            else
+
+                            if (skipToNextLine)
                             {
-                                //await xmlWriter.WriteCommentAsync($"L#{lineSource.CurrentLineNumber}: {line}");
-                                await lineSource.Read();
+                                await lineSource.SkipUntilAfterLineBreak();
+                                await lineSource.SkipEmptyLines();
                             }
+                            skipToNextLine = true;
                         }
 
                         if (cacheLibraryLineSourceTask != null && componentPlacements.Any())
@@ -318,7 +335,8 @@ namespace KiCadDoxer.Renderer
         private async Task<LineSource> CreateLibraryLineSource(string name)
         {
             var cancellationToken = SvgWriter.Current.RenderSettings.CancellationToken;
-            var result = await SvgWriter.RenderSettings.CreateLibraryLineSource(name, cancellationToken);
+            var result = await SvgWriter.RenderSettings.CreateLibraryLineSource(name + ".lib", cancellationToken);
+            result.Mode = TokenizerMode.EeSchema;
             if (string.IsNullOrEmpty(result.Url))
             {
                 result.Url = $"KiCad Library ({name})";
@@ -388,7 +406,7 @@ namespace KiCadDoxer.Renderer
             return (x, y);
         }
 
-        private async Task HandleComponentArc(ComponentPlacement placement, Token[] tokens, bool isFilledRenderPass)
+        private async Task HandleComponentArc(ComponentPlacement placement, IList<Token> tokens, bool isFilledRenderPass)
         {
             int unit = tokens[6];
             if (unit != 0 && unit != placement.UnitIndex)
@@ -447,7 +465,7 @@ namespace KiCadDoxer.Renderer
             await SvgWriter.WriteEndElementAsync("path");
         }
 
-        private async Task HandleComponentCircle(ComponentPlacement placement, Token[] tokens, bool isFilledRenderPass)
+        private async Task HandleComponentCircle(ComponentPlacement placement, IList<Token> tokens, bool isFilledRenderPass)
         {
             int unit = tokens[4];
             if (unit != 0 && unit != placement.UnitIndex)
@@ -489,16 +507,20 @@ namespace KiCadDoxer.Renderer
             // Filled items have to be rendered first. Then everything else - so we can't render in
             // the order we see the lines, so they must be stuffed into a list :(
 
-            var drawingTokens = new List<Token[]>();
-            Token[] loadedTokens;
+            var drawingTokens = new List<IList<Token>>();
+            IList<Token> loadedTokens;
             const int maxDrawingComplexity = 10000;
-            while ((loadedTokens = await libraryLineSource.ReadTokensNotEof())[0] != "ENDDRAW")
+
+            // TODO: Yet another place I should stop bulk loading tokens
+            await libraryLineSource.SkipEmptyLines();
+            while ((loadedTokens = (await libraryLineSource.ReadAllTokensUntilEndOfLine()).ToList())[0] != "ENDDRAW")
             {
+                await libraryLineSource.SkipEmptyLines();
                 if (drawingTokens.Count > maxDrawingComplexity)
                 {
                     // Protect against wierd stuff just using memory (yes, I should do that other
                     // places as well)
-                    await SvgWriter.WriteCommentAsync($"Maximum drawing complexity of {maxDrawingComplexity} elements reached for component {placements.First().Name} at line# {lineSource.CurrentLineNumber}");
+                    await SvgWriter.WriteCommentAsync($"Maximum drawing complexity of {maxDrawingComplexity} elements reached for component {placements.First().Name} at line# {lineSource.LineNumber}");
                     break;
                 }
 
@@ -544,7 +566,7 @@ namespace KiCadDoxer.Renderer
                             case "T":
                                 if (!isFilledRenderPass)
                                 {
-                                    await this.SvgWriter.WriteCommentAsync($"Unsupported draw operation {tokens[0]} in library file at line {libraryLineSource.CurrentLineNumber}");
+                                    await this.SvgWriter.WriteCommentAsync($"Unsupported draw operation {tokens[0]} in library file at line {libraryLineSource.LineNumber}");
                                 }
                                 break;
                         }
@@ -556,7 +578,7 @@ namespace KiCadDoxer.Renderer
             }
         }
 
-        private async Task HandleComponentField(Token[] fieldTokens, ComponentPlacement placement)
+        private async Task HandleComponentField(IList<Token> fieldTokens, ComponentPlacement placement)
         {
             string text = fieldTokens[2];
             if (string.IsNullOrEmpty(text))
@@ -646,7 +668,7 @@ namespace KiCadDoxer.Renderer
 
         private async Task HandleComponentFromLibrary(LineSource libraryLineSource)
         {
-            Token[] tokens;
+            IList<Token> tokens;
             List<string> namesAndAliases = new List<string>();
             int numberOfUnits = 1;
             double textOffset = 50;
@@ -654,7 +676,8 @@ namespace KiCadDoxer.Renderer
             bool drawPinNames = true;
             do
             {
-                tokens = await libraryLineSource.ReadTokensNotEof();
+                await libraryLineSource.SkipEmptyLines();
+                tokens = (await libraryLineSource.ReadAllTokensUntilEndOfLine()).ToList();
                 switch ((string)tokens[0])
                 {
                     case "DEF":
@@ -686,24 +709,30 @@ namespace KiCadDoxer.Renderer
 
         private async Task HandleComponentLibrary(LineSource libraryLineSource)
         {
-            string line;
             var cancellationToken = SvgWriter.Current.RenderSettings.CancellationToken;
-            while ((line = await libraryLineSource.Peek()) != null)
+            Token token;
+            while (true)
             {
+                token = await libraryLineSource.Peek();
+                if (token.Type == TokenType.EndOfFile)
+                {
+                    return;
+                }
+
                 cancellationToken.ThrowIfCancellationRequested();
 
-                if (line.StartsWith("DEF"))
+                if (token == "DEF")
                 {
                     await HandleComponentFromLibrary(libraryLineSource);
                 }
                 else
                 {
-                    await libraryLineSource.Read();
+                    await libraryLineSource.SkipUntilAfterLineBreak();
                 }
             }
         }
 
-        private async Task HandleComponentPin(ComponentPlacement placement, Token[] tokens, double textOffset, bool drawPinNumbers, bool drawPinNames)
+        private async Task HandleComponentPin(ComponentPlacement placement, IList<Token> tokens, double textOffset, bool drawPinNumbers, bool drawPinNames)
         {
             int unit = tokens[9];
             if (unit != 0 && unit != placement.UnitIndex)
@@ -717,7 +746,7 @@ namespace KiCadDoxer.Renderer
                 return;
             }
 
-            string pinType = tokens.Length > 12 ? tokens[12] : "";
+            string pinType = tokens.Count > 12 ? tokens[12] : "";
 
             bool isHidden = pinType == "N";
 
@@ -1041,7 +1070,7 @@ namespace KiCadDoxer.Renderer
             await SvgWriter.WriteEndElementAsync("g");
         }
 
-        private async Task HandleComponentPolyline(ComponentPlacement placement, Token[] tokens, bool isFilledRenderPath)
+        private async Task HandleComponentPolyline(ComponentPlacement placement, IList<Token> tokens, bool isFilledRenderPath)
         {
             int unit = tokens[2];
             if (unit != 0 && unit != placement.UnitIndex)
@@ -1090,7 +1119,7 @@ namespace KiCadDoxer.Renderer
             await SvgWriter.WriteEndElementAsync("polyline");
         }
 
-        private async Task HandleComponentRectangle(ComponentPlacement placement, Token[] tokens, bool isFilledRenderPass)
+        private async Task HandleComponentRectangle(ComponentPlacement placement, IList<Token> tokens, bool isFilledRenderPass)
         {
             int unit = tokens[5];
             if (unit != 0 && unit != placement.UnitIndex)
@@ -1131,32 +1160,36 @@ namespace KiCadDoxer.Renderer
 
         private async Task HandleConnection()
         {
-            var tokens = await lineSource.ReadTokensNotEof();
+            await lineSource.Read(); // ~
             await SvgWriter.WriteStartElementAsync("circle");
 
-            await SvgWriter.WriteAttributeStringAsync("cx", tokens[2]);
-            await SvgWriter.WriteAttributeStringAsync("cy", tokens[3]);
+            int x = await lineSource.Read();
+            int y = await lineSource.Read();
+            await SvgWriter.WriteAttributeStringAsync("cx", x);
+            await SvgWriter.WriteAttributeStringAsync("cy", y);
             await SvgWriter.WriteAttributeStringAsync("r", "18");
             await SvgWriter.WriteAttributeStringAsync("class", "connection");
 
             await SvgWriter.WriteAttributeStringAsync("fill", "rgb(0,132,0)");
             await SvgWriter.WriteEndElementAsync("circle");
 
-            wirePositions.Add((tokens[2], tokens[3]));
+            wirePositions.Add((x, y));
         }
 
         private async Task HandleDescription()
         {
             // For now, work with my example, can make it more generic in the future
-            var tokens = await lineSource.ReadTokensNotEof();
+            await lineSource.Read(); // Sheet size
+            var width = await lineSource.Read();
+            var height = await lineSource.Read();
 
             Func<double, string> toMM = mils => (mils * 0.0254).ToString(CultureInfo.InvariantCulture) + "mm";
 
             // These attributes should never be inherited - maybe rename the inherited to
             // specifically say inherited? - so WriteInheritedAttributeStringAsync?
-            await SvgWriter.WriteAttributeStringAsync("width", toMM(tokens[2]));
-            await SvgWriter.WriteAttributeStringAsync("height", toMM(tokens[3]));
-            await SvgWriter.WriteAttributeStringAsync("viewBox", $"0 0 {tokens[2]} {tokens[3]}");
+            await SvgWriter.WriteAttributeStringAsync("width", toMM(width));
+            await SvgWriter.WriteAttributeStringAsync("height", toMM(height));
+            await SvgWriter.WriteAttributeStringAsync("viewBox", $"0 0 {width} {height}");
         }
 
         private async Task<bool> HandleETagHeaders()
@@ -1188,24 +1221,28 @@ namespace KiCadDoxer.Renderer
             return continueRendering;
         }
 
-        private async Task HandleLibraryReference()
+        private async Task HandleLibraryReference(Token firstToken)
         {
             var cancellationToken = SvgWriter.Current.RenderSettings.CancellationToken;
             cancellationToken.ThrowIfCancellationRequested();
-            string line = await lineSource.Read();
+            string remaining = await lineSource.ReadTextWhileNot(TokenType.EndOfFile, TokenType.LineBreak);
+            string libLine = ((string)firstToken).Substring(5) + remaining;
             cancellationToken.ThrowIfCancellationRequested();
-            if (line.EndsWith("-cache"))
+
+            foreach (var lib in libLine.Split(','))
             {
-                string name = line.Substring(5) + ".lib"; // Substring to remove LIBS: prefix
-                cacheLibraryLineSourceTask = CreateLibraryLineSource(name);
+                if (lib.EndsWith("-cache"))
+                {
+                    cacheLibraryLineSourceTask = CreateLibraryLineSource(lib);
+                }
             }
         }
 
         private async Task HandleNoConnection()
         {
-            var tokens = await lineSource.ReadTokensNotEof();
-            int x = tokens[2];
-            int y = tokens[3];
+            await lineSource.Read(); // ~
+            int x = await lineSource.Read();
+            int y = await lineSource.Read();
             noConnectPositions.Add((x, y));
 
             await SvgWriter.WriteStartElementAsync("g");
@@ -1235,9 +1272,12 @@ namespace KiCadDoxer.Renderer
             await SvgWriter.WriteStartElementAsync("g");
             await SvgWriter.WriteAttributeStringAsync("class", "sheet");
 
-            Token[] tokens = null;
+            IList<Token> tokens = null;
             int x = 0, y = 0, width = 0, height = 0;
-            while ((tokens = await lineSource.ReadTokensNotEof()).FirstOrDefault() != "$EndSheet")
+            await lineSource.SkipEmptyLines();
+
+            // TODO: Argh, more bulkloading to remove
+            while ((tokens = (await lineSource.ReadAllTokensUntilEndOfLine()).ToList()).FirstOrDefault() != "$EndSheet")
             {
                 if (tokens[0] == "S")
                 {
@@ -1283,7 +1323,7 @@ namespace KiCadDoxer.Renderer
                             shape = PinSheetLabelShape.Unspecified;
 
                             // TODO: Log to application insights
-                            await SvgWriter.WriteCommentAsync($"Unknown sheet label form: {tokens[2]} at line {lineSource.CurrentLineNumber} in {lineSource.Url}");
+                            await SvgWriter.WriteCommentAsync($"Unknown sheet label form: {tokens[2]} at line {lineSource.LineNumber} in {lineSource.Url}");
                             break;
                     }
                     int orientation;
@@ -1303,13 +1343,15 @@ namespace KiCadDoxer.Renderer
                         default:
 
                             // TODO: Log to application insights
-                            await SvgWriter.WriteCommentAsync($"Unknown sheet label orientation: {tokens[3]} at line {lineSource.CurrentLineNumber} in {lineSource.Url}");
+                            await SvgWriter.WriteCommentAsync($"Unknown sheet label orientation: {tokens[3]} at line {lineSource.LineNumber} in {lineSource.Url}");
                             orientation = 0;
                             break;
                     }
 
                     await HandleText(TextType.HLabel, tokens[1], tokens[4], tokens[5], orientation, tokens[6], shape);
                 }
+
+                await lineSource.SkipEmptyLines();
             }
 
             await SvgWriter.WriteEndElementAsync("g");
@@ -1321,26 +1363,27 @@ namespace KiCadDoxer.Renderer
             // significent in the original source code. Currently I ignore this, as the docs show all
             // the supported text types having the same actual fields...
 
-            var tokens = await lineSource.ReadTokensNotEof();
-            string text = await lineSource.ReadNotEof();
+            var tokens = (await lineSource.ReadAllTokensUntilEndOfLine()).ToList();
+            await lineSource.SkipUntilAfterLineBreak();
+            string text = await lineSource.ReadTextWhileNot(TokenType.LineBreak, TokenType.EndOfFile);
 
-            var type = tokens[1].ToEnumOrDefault(TextType.Unknown);
+            var type = tokens[0].ToEnumOrDefault(TextType.Unknown);
 
             if (type == TextType.Unknown)
             {
                 // TODO: Log to application insights!
-                await SvgWriter.WriteCommentAsync($"WARNING: Unsupported text type {tokens[1]} at line {lineSource.CurrentLineNumber - 1} in {lineSource.Url}");
+                await SvgWriter.WriteCommentAsync($"WARNING: Unsupported text type {tokens[0]} at line {tokens[0].LineNumber} in {lineSource.Url}");
                 type = TextType.Notes;
             }
 
             PinSheetLabelShape? shape = null;
-            string shapeKey = tokens[6];
+            string shapeKey = tokens[5];
             if (!string.IsNullOrEmpty(shapeKey) && shapeKey != "~")
             {
-                shape = tokens[6].ToEnumOrDefault(PinSheetLabelShape.Unspecified);
+                shape = tokens[5].ToEnumOrDefault(PinSheetLabelShape.Unspecified);
             }
 
-            await HandleText(type, text, tokens[2], tokens[3], tokens[4], tokens[5], shape);
+            await HandleText(type, text, tokens[1], tokens[2], tokens[3], tokens[4], shape);
         }
 
         private async Task HandleText(TextType type, string text, double x, double y, int orientation, double size, string shapeKey)
@@ -1394,7 +1437,7 @@ namespace KiCadDoxer.Renderer
                     break;
 
                 default:
-                    await SvgWriter.WriteCommentAsync($"WARNING: Unsupported text type {type} at line {lineSource.CurrentLineNumber - 1} - rendered with incorrect settings");
+                    await SvgWriter.WriteCommentAsync($"WARNING: Unsupported text type {type} at line {lineSource.LineNumber - 1} - rendered with incorrect settings");
                     break;
             }
 
@@ -1467,9 +1510,11 @@ namespace KiCadDoxer.Renderer
 
         private async Task HandleWire()
         {
-            Token[] type = await lineSource.ReadTokensNotEof(); // Wire Wire Line or Wire Bus Line
+            IEnumerable<Token> type = await lineSource.ReadAllTokensUntilEndOfLine(); //  Wire Line or Bus Line (initial Wire already consumed)
+            await lineSource.SkipUntilAfterLineBreak();
 
-            Token[] lineDef = await lineSource.ReadTokensNotEof();
+            // TODO: Argh, more reading all tokens
+            IList<Token> lineDef = (await lineSource.ReadAllTokensUntilEndOfLine()).ToList();
             await SvgWriter.WriteStartElementAsync("line");
 
             await SvgWriter.WriteAttributeStringAsync("x1", lineDef[0]);
@@ -1477,7 +1522,7 @@ namespace KiCadDoxer.Renderer
             await SvgWriter.WriteAttributeStringAsync("x2", lineDef[2]);
             await SvgWriter.WriteAttributeStringAsync("y2", lineDef[3]);
 
-            await SvgWriter.WriteAttributeStringAsync("class", string.Join(" ", type.Skip(1).Select(l => l.ToLowerInvariant())));
+            await SvgWriter.WriteAttributeStringAsync("class", string.Join(" ", type.Select(l => l.ToLowerInvariant())));
 
             await SvgWriter.WriteAttributeStringAsync("stroke", "rgb(0,132,0)");
             await SvgWriter.WriteEndElementAsync("line");
