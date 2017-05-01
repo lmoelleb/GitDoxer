@@ -4,7 +4,7 @@ namespace KiCadDoxer.Renderer.Exceptions
 {
     public class KiCadFileFormatException : Exception
     {
-        internal KiCadFileFormatException(Token token, string message) : this(token.LineSource, token.LineNumber, token.CharacterNumber, message)
+        internal KiCadFileFormatException(Token token, string message) : this(token.LineSource, token.LineNumber, token.ColumnNumber, message)
         {
         }
 
