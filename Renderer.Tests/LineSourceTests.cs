@@ -1,4 +1,3 @@
-using KiCadDoxer.Renderer;
 using KiCadDoxer.Renderer.Exceptions;
 using System.Threading.Tasks;
 using Xunit;
@@ -95,6 +94,5 @@ namespace KiCadDoxer.Renderer.Tests
                 Assert.Equal("NoQuotes", token);
             }
         }
-
     }
 }

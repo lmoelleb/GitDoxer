@@ -12,14 +12,15 @@ namespace KiCadDoxer.Renderer
 {
     public abstract class LineSource : IDisposable
     {
+        private const int ExpectedMaximumTokenOrWhitespaceSize = 2048;
         private const int MaximumTokenSize = 1_000_000; // Max 1MB tokens to limit DOD attacks (not that I expect any) trying to exhaust memory
         private const int MaximumWhiteSpaceSize = 1_000_000;
-        private const int ExpectedMaximumTokenOrWhitespaceSize = 2048;
         private static bool[] isWhiteSpaceLookup;
         private int columnNumber;
         private CancellationTokenSource combinedCancellationTokenSource;
         private CancellationTokenSource disposedCancellationTokenSource = new CancellationTokenSource();
         private StringBuilder escapedCharacterBuilder = new StringBuilder();
+        private StringBuilder escapedTokenStringBuilder = new StringBuilder(ExpectedMaximumTokenOrWhitespaceSize);
         private Lazy<Task<string>> etagTask;
         private int lineNumber = 1;
         private int? peekedChar;
@@ -33,7 +34,6 @@ namespace KiCadDoxer.Renderer
         private List<IDisposable> toDispose = new List<IDisposable>();
         private StringBuilder unescapedTokenStringBuilder = new StringBuilder(ExpectedMaximumTokenOrWhitespaceSize);
         private StringBuilder whiteSpaceStringBuilder = new StringBuilder(ExpectedMaximumTokenOrWhitespaceSize);
-        private StringBuilder escapedTokenStringBuilder = new StringBuilder(ExpectedMaximumTokenOrWhitespaceSize);
 
         public LineSource(CancellationToken cancellationToken)
         {
@@ -57,122 +57,6 @@ namespace KiCadDoxer.Renderer
 
         internal TokenizerMode Mode { get; set; }
 
-        public async Task<Token> TryPeekUnless(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
-        {
-            var peek = await Peek();
-            if (TokenTypeOrText.IsMatching(peek, typeOrText, typesOrTexts))
-            {
-                return null;
-            }
-
-            return peek;
-        }
-
-        public async Task<Token> TryPeekIf(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
-        {
-            var peek = await Peek();
-            if (TokenTypeOrText.IsMatching(peek, typeOrText, typesOrTexts))
-            {
-                return peek;
-            }
-
-            return null;
-        }
-
-        public async Task<Token> TryReadIf(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
-        {
-            if (await TryPeekIf(typeOrText, typesOrTexts) != null)
-            {
-                // No need to check the type again... I hope :)
-                return await Read();
-            }
-
-            return null;
-        }
-
-        public async Task<Token> TryReadUnless(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
-        {
-            if (await TryPeekUnless(typeOrText, typesOrTexts) != null)
-            {
-                // No need to check the type again... I hope :)
-                return await Read();
-            }
-
-            return null;
-        }
-
-         public async Task SkipWhileNot(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
-        {
-            while (true)
-            {
-                Token token = await Peek();
-                if (TokenTypeOrText.IsMatching(token, typeOrText, typesOrTexts))
-                {
-                    return;
-                }
-
-                await Read();
-            }
-        }
-        public async Task SkipUntilAfterLineBreak()
-        {
-            await SkipWhileNot(TokenType.LineBreak, TokenType.EndOfFile);
-            await Read(); // Consume the linebreak (or EOF, but that is fine, EOF keeps coming :)
-        }
-
-        public async Task SkipEmptyLines()
-        {
-            while ((await Peek()).Type == TokenType.LineBreak)
-            {
-                await Read();
-            }
-        }
-
-        public async Task ReadNext(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
-        {
-            await SkipWhileNot(typeOrText, typesOrTexts);
-        }
-
-        public async Task<string> ReadTextWhileNot(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
-        {
-            Token token;
-            StringBuilder result = new StringBuilder();
-            var peekedStart = await Peek();
-            while ((token = await TryReadUnless(typeOrText, typesOrTexts)) != null)
-            {
-                result.Append(token.PreceedingWhiteSpace);
-                result.Append((string)token);
-            }
-
-            // We still might have whitespace up to the token we are looking for, include that as well
-            Token nextToken = await Peek();
-            result.Append(nextToken.PreceedingWhiteSpace);
-            nextToken.PreceedingWhiteSpace = string.Empty; // Should maybe have a nicer way to stop it form being used twice... oh well
-
-            return result.ToString();
-        }
-
-        public async Task<IEnumerable<Token>> ReadAllTokensWhileNot(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
-        {
-            List<Token> result = new List<Token>();
-            Token token;
-            while ((token = await TryReadUnless(typeOrText, typesOrTexts)) != null)
-            {
-                result.Add(token);
-            }
-
-            return result.AsReadOnly();
-        }
-
-        public Task<IEnumerable<Token>> ReadAllTokensUntilEndOfLine()
-        {
-            // TODO: Clean up messy code
-            // I probably want to get rid of this method though (no reading in bulk), so try to remove it instead of cleaning it up
-            TokenTypeOrText eof = TokenType.EndOfFile;
-            return ReadAllTokensWhileNot(TokenType.LineBreak, new TokenTypeOrText[] { eof });
-        }
-
-
         public async Task<Token> Peek(params TokenTypeOrText[] typesOrTexts)
         {
             if (Mode == TokenizerMode.Unspecified)
@@ -193,7 +77,6 @@ namespace KiCadDoxer.Renderer
             escapedCharacterBuilder.Clear();
             whiteSpaceStringBuilder.Clear();
             whiteSpaceStringBuilder.Capacity = Math.Min(whiteSpaceStringBuilder.Capacity, ExpectedMaximumTokenOrWhitespaceSize);
-
 
             bool inQuotedString = false;
             bool wasQuotedString = false;
@@ -330,10 +213,126 @@ namespace KiCadDoxer.Renderer
             var result = await Peek(typesOrTexts);
             if (result.Type != TokenType.EndOfFile)
             {
-                // Keep returning EndOfFile to avoid dealing with null 
+                // Keep returning EndOfFile to avoid dealing with null
                 peekedToken = null;
             }
             return result;
+        }
+
+        public Task<IEnumerable<Token>> ReadAllTokensUntilEndOfLine()
+        {
+            // TODO: Clean up messy code I probably want to get rid of this method though (no reading
+            // in bulk), so try to remove it instead of cleaning it up
+            TokenTypeOrText eof = TokenType.EndOfFile;
+            return ReadAllTokensWhileNot(TokenType.LineBreak, new TokenTypeOrText[] { eof });
+        }
+
+        public async Task<IEnumerable<Token>> ReadAllTokensWhileNot(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        {
+            List<Token> result = new List<Token>();
+            Token token;
+            while ((token = await TryReadUnless(typeOrText, typesOrTexts)) != null)
+            {
+                result.Add(token);
+            }
+
+            return result.AsReadOnly();
+        }
+
+        public async Task ReadNext(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        {
+            await SkipWhileNot(typeOrText, typesOrTexts);
+        }
+
+        public async Task<string> ReadTextWhileNot(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        {
+            Token token;
+            StringBuilder result = new StringBuilder();
+            var peekedStart = await Peek();
+            while ((token = await TryReadUnless(typeOrText, typesOrTexts)) != null)
+            {
+                result.Append(token.PreceedingWhiteSpace);
+                result.Append((string)token);
+            }
+
+            // We still might have whitespace up to the token we are looking for, include that as well
+            Token nextToken = await Peek();
+            result.Append(nextToken.PreceedingWhiteSpace);
+            nextToken.PreceedingWhiteSpace = string.Empty; // Should maybe have a nicer way to stop it form being used twice... oh well
+
+            return result.ToString();
+        }
+
+        public async Task SkipEmptyLines()
+        {
+            while ((await Peek()).Type == TokenType.LineBreak)
+            {
+                await Read();
+            }
+        }
+
+        public async Task SkipUntilAfterLineBreak()
+        {
+            await SkipWhileNot(TokenType.LineBreak, TokenType.EndOfFile);
+            await Read(); // Consume the linebreak (or EOF, but that is fine, EOF keeps coming :)
+        }
+
+        public async Task SkipWhileNot(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        {
+            while (true)
+            {
+                Token token = await Peek();
+                if (TokenTypeOrText.IsMatching(token, typeOrText, typesOrTexts))
+                {
+                    return;
+                }
+
+                await Read();
+            }
+        }
+
+        public async Task<Token> TryPeekIf(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        {
+            var peek = await Peek();
+            if (TokenTypeOrText.IsMatching(peek, typeOrText, typesOrTexts))
+            {
+                return peek;
+            }
+
+            return null;
+        }
+
+        public async Task<Token> TryPeekUnless(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        {
+            var peek = await Peek();
+            if (TokenTypeOrText.IsMatching(peek, typeOrText, typesOrTexts))
+            {
+                return null;
+            }
+
+            return peek;
+        }
+
+        public async Task<Token> TryReadIf(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        {
+            if (await TryPeekIf(typeOrText, typesOrTexts) != null)
+            {
+                // No need to check the type again... I hope :)
+                return await Read();
+            }
+
+            return null;
+        }
+
+        public async Task<Token> TryReadUnless(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        {
+            if (await TryPeekUnless(typeOrText, typesOrTexts) != null)
+            {
+                // No need to check the type again... I hope :)
+                return await Read();
+            }
+
+            return null;
         }
 
         protected abstract Task<TextReader> CreateReader(CancellationToken cancellationToken);
@@ -597,10 +596,9 @@ namespace KiCadDoxer.Renderer
 
         public class TokenTypeOrText
         {
+            public static readonly IEnumerable<TokenTypeOrText> EndOfLineTokenTypes = new TokenTypeOrText[] { TokenType.LineBreak, TokenType.EndOfFile };
             private string tokenText;
             private TokenType? tokenType;
-            public static readonly IEnumerable<TokenTypeOrText> EndOfLineTokenTypes = new TokenTypeOrText[] { TokenType.LineBreak, TokenType.EndOfFile }; 
-            
 
             private TokenTypeOrText(string tokenText)
             {
@@ -611,58 +609,6 @@ namespace KiCadDoxer.Renderer
             private TokenTypeOrText(TokenType tokenType)
             {
                 this.tokenType = tokenType;
-            }
-
-            public static implicit operator TokenTypeOrText(string text)
-            {
-                return new TokenTypeOrText(text);
-            }
-
-            public static implicit operator TokenTypeOrText(TokenType type)
-            {
-                return new TokenTypeOrText(type);
-            }
-
-            public bool IsMatch(Token token)
-            {
-                if (tokenType.HasValue && token.Type != tokenType.Value)
-                {
-                    return false;
-                }
-                else if (tokenText != null && token != tokenText)
-                {
-                    return false;
-                }
-
-                return true;
-            }
-
-            public static bool IsMatching(Token token, TokenTypeOrText typeOrText, IEnumerable<TokenTypeOrText> typeOrTexts)
-            {
-                return IsMatching(token, typeOrText.AsEnumerable().Concat(typeOrTexts));
-            }
-
-            public static bool IsMatching(Token token, IEnumerable<TokenTypeOrText> typeOrTexts)
-            {
-                bool hadData = false; // Ensure single enumeration in typical cases (no parse error)
-                bool result = typeOrTexts.Any(t =>
-                {
-                    hadData = true;
-                    return t.IsMatch(token);
-                });
-
-                if (!hadData)
-                {
-                    // No restriction applied, anything goes!
-                    return true;
-                }
-
-                return result;
-            }
-
-            internal IEnumerable<TokenTypeOrText> AsEnumerable()
-            {
-                yield return this;
             }
 
             public static void EnsureMatching(Token token, TokenTypeOrText tokenTypeOrText, IEnumerable<TokenTypeOrText> typeOrTexts)
@@ -716,8 +662,54 @@ namespace KiCadDoxer.Renderer
                     joinerText = " or ";
                 }
 
-
                 throw new KiCadFileFormatException(token, $"Expected a token with {expectedTexts}{joinerText}{expectedTypes}. Got \"{token}\" with type {token.Type}.");
+            }
+
+            public static implicit operator TokenTypeOrText(string text)
+            {
+                return new TokenTypeOrText(text);
+            }
+
+            public static implicit operator TokenTypeOrText(TokenType type)
+            {
+                return new TokenTypeOrText(type);
+            }
+
+            public static bool IsMatching(Token token, TokenTypeOrText typeOrText, IEnumerable<TokenTypeOrText> typeOrTexts)
+            {
+                return IsMatching(token, typeOrText.AsEnumerable().Concat(typeOrTexts));
+            }
+
+            public static bool IsMatching(Token token, IEnumerable<TokenTypeOrText> typeOrTexts)
+            {
+                bool hadData = false; // Ensure single enumeration in typical cases (no parse error)
+                bool result = typeOrTexts.Any(t =>
+                {
+                    hadData = true;
+                    return t.IsMatch(token);
+                });
+
+                if (!hadData)
+                {
+                    // No restriction applied, anything goes!
+                    return true;
+                }
+
+                return result;
+            }
+
+            public bool IsMatch(Token token)
+            {
+                if (tokenType.HasValue && token.Type != tokenType.Value)
+                {
+                    return false;
+                }
+                else if (tokenText != null && token != tokenText)
+                {
+                    return false;
+                }
+
+                return true;
             }
 
             public override string ToString()
@@ -731,8 +723,11 @@ namespace KiCadDoxer.Renderer
                 return result;
             }
 
+            internal IEnumerable<TokenTypeOrText> AsEnumerable()
+            {
+                yield return this;
+            }
         }
-
 
         #region IDisposable Support
 

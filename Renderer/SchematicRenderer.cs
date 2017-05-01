@@ -59,7 +59,8 @@ namespace KiCadDoxer.Renderer
 
                         var componentReferenceFieldsToRenderAfterLibraryLoad = new List<(ComponentPlacement Placement, IList<Token> Tokens)>();
 
-                        // TODO: Clean up this royal mess - some helper class or two would probably help reducing the size of this
+                        // TODO: Clean up this royal mess - some helper class or two would probably
+                        //       help reducing the size of this
                         bool skipToNextLine = false;
                         while (true)
                         {
@@ -73,7 +74,7 @@ namespace KiCadDoxer.Renderer
                                 List<Token> tokens = new List<Token>();
                                 tokens.Add(firstToken);
                                 tokens.AddRange(await lineSource.ReadAllTokensUntilEndOfLine());
-                               
+
                                 switch ((string)firstToken)
                                 {
                                     case "L":
@@ -111,8 +112,8 @@ namespace KiCadDoxer.Renderer
                                         // Look the other way, this is going to be ugly :)
                                         if (!knownMultiUnit && tokens[1] == "0")
                                         {
-                                            // This is the reference field, for example U304A.
-                                            // We do not know at this moment if we need to add a unit
+                                            // This is the reference field, for example U304A. We do
+                                            // not know at this moment if we need to add a unit
                                             // identifier - we need to defer rendering of the field.
 
                                             componentReferenceFieldsToRenderAfterLibraryLoad.Add((currentComponentPlacement, tokens));
@@ -509,6 +510,7 @@ namespace KiCadDoxer.Renderer
             var drawingTokens = new List<IList<Token>>();
             IList<Token> loadedTokens;
             const int maxDrawingComplexity = 10000;
+
             // TODO: Yet another place I should stop bulk loading tokens
             await libraryLineSource.SkipEmptyLines();
             while ((loadedTokens = (await libraryLineSource.ReadAllTokensUntilEndOfLine()).ToList())[0] != "ENDDRAW")
@@ -1273,6 +1275,7 @@ namespace KiCadDoxer.Renderer
             IList<Token> tokens = null;
             int x = 0, y = 0, width = 0, height = 0;
             await lineSource.SkipEmptyLines();
+
             // TODO: Argh, more bulkloading to remove
             while ((tokens = (await lineSource.ReadAllTokensUntilEndOfLine()).ToList()).FirstOrDefault() != "$EndSheet")
             {
@@ -1349,7 +1352,6 @@ namespace KiCadDoxer.Renderer
                 }
 
                 await lineSource.SkipEmptyLines();
-
             }
 
             await SvgWriter.WriteEndElementAsync("g");
@@ -1510,6 +1512,7 @@ namespace KiCadDoxer.Renderer
         {
             IEnumerable<Token> type = await lineSource.ReadAllTokensUntilEndOfLine(); //  Wire Line or Bus Line (initial Wire already consumed)
             await lineSource.SkipUntilAfterLineBreak();
+
             // TODO: Argh, more reading all tokens
             IList<Token> lineDef = (await lineSource.ReadAllTokensUntilEndOfLine()).ToList();
             await SvgWriter.WriteStartElementAsync("line");

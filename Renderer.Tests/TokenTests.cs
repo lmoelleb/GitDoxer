@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using Xunit;
 
 namespace KiCadDoxer.Renderer.Tests
@@ -93,7 +90,5 @@ namespace KiCadDoxer.Renderer.Tests
             //       actually do!
             Assert.Equal(" ", await StringLineSource.GetUnescapedString(@"\x20"));
         }
-
-
     }
 }

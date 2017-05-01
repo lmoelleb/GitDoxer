@@ -1,5 +1,4 @@
-﻿using KiCadDoxer.Renderer;
-using System.IO;
+﻿using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -16,11 +15,6 @@ namespace KiCadDoxer.Renderer.Tests
             this.Mode = mode;
         }
 
-        protected override Task<TextReader> CreateReader(CancellationToken cancellationToken)
-        {
-            return Task.FromResult((TextReader)new StringReader(value));
-        }
-
         public static async Task<string> GetUnescapedString(string escapedString)
         {
             using (var source = new StringLineSource(TokenizerMode.SExpresionKiCad, "\"" + escapedString + "\""))
@@ -29,5 +23,9 @@ namespace KiCadDoxer.Renderer.Tests
             }
         }
 
+        protected override Task<TextReader> CreateReader(CancellationToken cancellationToken)
+        {
+            return Task.FromResult((TextReader)new StringReader(value));
+        }
     }
 }
