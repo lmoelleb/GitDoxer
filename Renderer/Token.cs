@@ -13,12 +13,12 @@ namespace KiCadDoxer.Renderer
         private static string[] validBooleanTrue = { "Y", "1" };
         private Lazy<string> unescapedToken;
 
-        internal Token(string preceedingWhiteSpace, string escapedTokenValue, TokenType type, LineSource lineSource, int lineNumber, int columnNumber) : this(preceedingWhiteSpace, escapedTokenValue, GetTextFromTokenType(type), lineSource, lineNumber, columnNumber)
+        internal Token(string preceedingWhiteSpace, string escapedTokenValue, TokenType type, LineSource lineSource, int lineNumber, int columnNumber) : this(preceedingWhiteSpace, escapedTokenValue, lineSource, lineNumber, columnNumber)
         {
             Type = type;
         }
 
-        internal Token(string preceedingWhiteSpace, string escapedTokenValue, string unescapedTokenValue, LineSource lineSource, int lineNumber, int columnNumber)
+        internal Token(string preceedingWhiteSpace, string escapedTokenValue, LineSource lineSource, int lineNumber, int columnNumber)
         {
             this.EscapedTokenValue = escapedTokenValue ?? string.Empty;
             this.unescapedToken = new Lazy<string>(() => Unescape());

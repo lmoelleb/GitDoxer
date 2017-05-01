@@ -1,7 +1,6 @@
 ﻿using KiCadDoxer.Renderer.Exceptions;
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -19,8 +18,6 @@ namespace KiCadDoxer.Renderer
         private int columnNumber;
         private CancellationTokenSource combinedCancellationTokenSource;
         private CancellationTokenSource disposedCancellationTokenSource = new CancellationTokenSource();
-        private StringBuilder escapedCharacterBuilder = new StringBuilder();
-        private StringBuilder escapedTokenStringBuilder = new StringBuilder(ExpectedMaximumTokenOrWhitespaceSize);
         private Lazy<Task<string>> etagTask;
         private int lineNumber = 1;
         private int? peekedChar;
@@ -32,7 +29,7 @@ namespace KiCadDoxer.Renderer
         private bool readerCreated = false;
         private Lazy<Task<TextReader>> readerTask;
         private List<IDisposable> toDispose = new List<IDisposable>();
-        private StringBuilder unescapedTokenStringBuilder = new StringBuilder(ExpectedMaximumTokenOrWhitespaceSize);
+        private StringBuilder tokenStringBuilder = new StringBuilder(ExpectedMaximumTokenOrWhitespaceSize);
         private StringBuilder whiteSpaceStringBuilder = new StringBuilder(ExpectedMaximumTokenOrWhitespaceSize);
 
         public LineSource(CancellationToken cancellationToken)
@@ -70,16 +67,14 @@ namespace KiCadDoxer.Renderer
                 return peekedToken;
             }
 
-            unescapedTokenStringBuilder.Clear();
-            unescapedTokenStringBuilder.Capacity = Math.Min(unescapedTokenStringBuilder.Capacity, ExpectedMaximumTokenOrWhitespaceSize);
-            escapedTokenStringBuilder.Clear();
-            escapedTokenStringBuilder.Capacity = Math.Min(escapedTokenStringBuilder.Capacity, ExpectedMaximumTokenOrWhitespaceSize);
-            escapedCharacterBuilder.Clear();
+            tokenStringBuilder.Clear();
+            tokenStringBuilder.Capacity = Math.Min(tokenStringBuilder.Capacity, ExpectedMaximumTokenOrWhitespaceSize);
             whiteSpaceStringBuilder.Clear();
             whiteSpaceStringBuilder.Capacity = Math.Min(whiteSpaceStringBuilder.Capacity, ExpectedMaximumTokenOrWhitespaceSize);
 
             bool inQuotedString = false;
             bool wasQuotedString = false;
+            bool lastWasEscapeStart = false;
 
             int tokenLineNumber = lineNumber;
             int tokenColumnNumber = columnNumber;
@@ -88,10 +83,13 @@ namespace KiCadDoxer.Renderer
             {
                 int read = await ReadChar();
 
+                combinedCancellationTokenSource.Token.ThrowIfCancellationRequested();
+
                 bool isWhiteSpace = IsWhiteSpace((char)read) && !inQuotedString;
 
-                // Skip leading whitespaces
-                if (!inQuotedString && !wasQuotedString && unescapedTokenStringBuilder.Length == 0 && isWhiteSpace)
+                // Skip leading whitespaces - consider introducing a whitespace token instead of
+                // having a separate section for whitespaces.
+                if (!inQuotedString && !wasQuotedString && tokenStringBuilder.Length == 0 && isWhiteSpace)
                 {
                     whiteSpaceStringBuilder.Append((char)read);
                     continue;
@@ -99,110 +97,107 @@ namespace KiCadDoxer.Renderer
 
                 bool isEoF = read < 0;
                 bool isNewLine = read == '\n';
-                bool isSExpressionToken = !inQuotedString && (read == '(' || read == ')');
+                bool isSExpressionToken = Mode == TokenizerMode.SExpresionKiCad && !inQuotedString && (read == '(' || read == ')');
 
-                if (wasQuotedString && !(isEoF || isWhiteSpace || isNewLine || (isSExpressionToken && unescapedTokenStringBuilder.Length > 0)))
+                if (wasQuotedString && !(isEoF || isWhiteSpace || isNewLine || isSExpressionToken))
                 {
-                    throw new KiCadFileFormatException(this, tokenLineNumber, tokenColumnNumber, "Quoted text must be followed by a whitespace or a parenthesis");
+                    string message = Mode == TokenizerMode.SExpresionKiCad ?
+                        "Quoted text must be followed by a whitespace." :
+                        "Quoted text must be followed by a whitespace or a parenthesis.";
+                    throw new KiCadFileFormatException(this, tokenLineNumber, tokenColumnNumber, message);
                 }
 
-                if ((isEoF || wasQuotedString || isWhiteSpace || isNewLine || isSExpressionToken) && escapedTokenStringBuilder.Length > 0)
+                if ((isEoF || isWhiteSpace || isNewLine || isSExpressionToken) && tokenStringBuilder.Length > 0)
                 {
-                    // Put the whitespace or expression token back so we leave right after the token
-                    // - Then method reading the next line knows it first has to read to the end of
-                    // the current. That way we do not need to deal with the difference from
-                    // whitespaces at the end of the line
+                    // The current character terminates the token we have been building. So put the
+                    // character back (set it in peeked, a bit simplistic I know) and return the
+                    // token we already have-
                     peekedChar = read;
-                    string unescapedTokenValue = unescapedTokenStringBuilder.ToString();
-                    string escapedTokenValue = escapedTokenStringBuilder.ToString();
+                    string escapedTokenValue = tokenStringBuilder.ToString();
 
-                    peekedToken = new Token(whiteSpaceStringBuilder.ToString(), escapedTokenValue, unescapedTokenValue, this, tokenLineNumber, tokenColumnNumber);
+                    peekedToken = new Token(whiteSpaceStringBuilder.ToString(), escapedTokenValue, this, tokenLineNumber, tokenColumnNumber);
                     TokenTypeOrText.EnsureMatching(peekedToken, typesOrTexts);
                     return peekedToken;
                 }
 
+                // We have now dealt with the token already being build up - what we have now is for
+                // the current token Deal with the simple single character cases first
+
                 if (isEoF)
                 {
-                    peekedToken = new Token(whiteSpaceStringBuilder.ToString(), escapedTokenStringBuilder.ToString(), TokenType.EndOfFile, this, tokenLineNumber, tokenColumnNumber);
+                    peekedToken = new Token(whiteSpaceStringBuilder.ToString(), string.Empty, TokenType.EndOfFile, this, tokenLineNumber, tokenColumnNumber);
                     TokenTypeOrText.EnsureMatching(peekedToken, typesOrTexts);
                     return peekedToken;
                 }
 
                 char c = (char)read;
-                escapedTokenStringBuilder.Append(c);
+                tokenStringBuilder.Append(c);
 
-                bool wasEscaped = false;
-                if (inQuotedString)
+                if (c == '\n')
                 {
-                    bool characterAvailable;
-                    bool wasConsumed;
-                    char escaped;
-
-                    (characterAvailable, escaped, wasEscaped, wasConsumed) = DecodeEscape(c);
-
-                    if (!wasConsumed)
+                    // Special handling - steal any \r from the whitespace before - that way \r\n is
+                    // seen as a single token
+                    if (whiteSpaceStringBuilder.Length > 0 && whiteSpaceStringBuilder[whiteSpaceStringBuilder.Length - 1] == '\r')
                     {
-                        peekedChar = c;
-                        escapedTokenStringBuilder.Remove(escapedTokenStringBuilder.Length - 1, 1);
+                        tokenStringBuilder.Insert(0, '\r');
+                        whiteSpaceStringBuilder.Remove(whiteSpaceStringBuilder.Length - 1, 1);
                     }
 
-                    if (wasEscaped)
+                    peekedToken = new Token(whiteSpaceStringBuilder.ToString(), tokenStringBuilder.ToString(), TokenType.LineBreak, this, tokenLineNumber, tokenColumnNumber);
+                    TokenTypeOrText.EnsureMatching(peekedToken, typesOrTexts);
+                    return peekedToken;
+                }
+
+                if (isSExpressionToken)
+                {
+                    TokenType type;
+                    switch (c)
                     {
-                        c = escaped;
+                        case '(':
+                            type = TokenType.ExpressionOpen;
+                            break;
+
+                        case ')':
+                            type = TokenType.ExpressionClose;
+                            break;
+
+                        default:
+                            throw new NotImplementedException("Token not implemented: " + c);
                     }
 
-                    if (!characterAvailable)
-                    {
-                        continue;
-                    }
+                    peekedToken = new Token(whiteSpaceStringBuilder.ToString(), tokenStringBuilder.ToString(), type, this, tokenLineNumber, tokenColumnNumber);
+                    TokenTypeOrText.EnsureMatching(peekedToken, typesOrTexts);
+                    return peekedToken;
+                }
 
-                    if (c == '\"' && !wasEscaped)
-                    {
-                        inQuotedString = false;
-                        wasQuotedString = true;
-                    }
-                    else
-                    {
-                        if (unescapedTokenStringBuilder.Length == MaximumTokenSize)
-                        {
-                            throw new KiCadFileFormatException(this, tokenLineNumber, tokenColumnNumber, $"Maximum token length of {MaximumTokenSize} exceeded");
-                        }
+                // Not a single character thing (well, could be, but we do not know right away), so
+                // build it up
 
-                        unescapedTokenStringBuilder.Append(c);
+                if (!inQuotedString)
+                {
+                    if (c == '\"' && tokenStringBuilder.Length == 1)
+                    {
+                        // The token starts with a quote, so kick it into quoted string mode.
+                        inQuotedString = true;
                     }
                 }
                 else
                 {
-                    if (unescapedTokenStringBuilder.Length == 0 && c == '\"')
+                    // We only care enough about escapes to determine if a " terminates the string,
+                    // the rest of escape handling is in the Token
+                    if (!lastWasEscapeStart && c == '\"')
                     {
-                        inQuotedString = true;
+                        inQuotedString = false;
+                        wasQuotedString = true;
                     }
-                    else if (Mode == TokenizerMode.SExpresionKiCad && c == '(')
+
+                    if (lastWasEscapeStart)
                     {
-                        peekedToken = new Token(whiteSpaceStringBuilder.ToString(), escapedTokenStringBuilder.ToString(), TokenType.ExpressionOpen, this, tokenLineNumber, tokenColumnNumber);
-                        TokenTypeOrText.EnsureMatching(peekedToken, typesOrTexts);
-                        return peekedToken;
-                    }
-                    else if (Mode == TokenizerMode.SExpresionKiCad && c == ')')
-                    {
-                        peekedToken = new Token(whiteSpaceStringBuilder.ToString(), escapedTokenStringBuilder.ToString(), TokenType.ExpressionClose, this, tokenLineNumber, tokenColumnNumber);
-                        TokenTypeOrText.EnsureMatching(peekedToken, typesOrTexts);
-                        return peekedToken;
-                    }
-                    else if (c == '\n')
-                    {
-                        peekedToken = new Token(whiteSpaceStringBuilder.ToString(), escapedTokenStringBuilder.ToString(), TokenType.LineBreak, this, tokenLineNumber, tokenColumnNumber);
-                        TokenTypeOrText.EnsureMatching(peekedToken, typesOrTexts);
-                        return peekedToken;
+                        lastWasEscapeStart = false;
                     }
                     else
                     {
-                        if (unescapedTokenStringBuilder.Length == MaximumTokenSize)
-                        {
-                            throw new KiCadFileFormatException(this, tokenLineNumber, tokenColumnNumber, $"Maximum token length of {MaximumTokenSize} exceeded");
-                        }
-
-                        unescapedTokenStringBuilder.Append(c);
+                        lastWasEscapeStart = c == '\\';
                     }
                 }
             }
@@ -345,193 +340,6 @@ namespace KiCadDoxer.Renderer
         protected void RegisterForDisposal(IDisposable disposable)
         {
             toDispose.Add(disposable);
-        }
-
-        private (bool CharacterAvailable, char Character, bool WasEscaped, bool WasConsumed) DecodeEscape(char c)
-        {
-            bool wasEscaped = true;
-            int character = -1;
-            bool wasConsumed = true;
-            if (escapedCharacterBuilder.Length == 0)
-            {
-                if (c == '\\')
-                {
-                    escapedCharacterBuilder.Append(c);
-                }
-                else
-                {
-                    character = c;
-                    wasEscaped = false;
-                }
-            }
-            else if (escapedCharacterBuilder.Length == 1)
-            {
-                // Only the \ encountered
-                switch (c)
-                {
-                    case 'a':
-                        character = '\a';
-                        break;
-
-                    case 'b':
-                        character = '\b';
-                        break;
-
-                    case 'f':
-                        character = '\f';
-                        break;
-
-                    case 'n':
-                        character = '\n';
-                        break;
-
-                    case 'r':
-                        character = '\r';
-                        break;
-
-                    case 't':
-                        character = '\t';
-                        break;
-
-                    case 'v':
-                        character = '\v';
-                        break;
-
-                    case '\\':
-                        character = '\\';
-                        break;
-
-                    case '\'':
-                        character = '\'';
-                        break;
-
-                    case '\"':
-                        character = '\"';
-                        break;
-
-                    case '?':
-                        character = '?';
-                        break;
-
-                    case 'x':
-                    case 'U':
-                    case 'u':
-                    case '0':
-                    case '1':
-                    case '2':
-                    case '3':
-                    case '4':
-                    case '5':
-                    case '6':
-                    case '7':
-
-                        // Multicharacter escape
-                        escapedCharacterBuilder.Append(c);
-                        break;
-
-                    default:
-                        escapedCharacterBuilder.Append(c);
-                        throw new KiCadFileFormatException(this, lineNumber, columnNumber, "Unsupported escape sequence: " + escapedCharacterBuilder.ToString());
-                }
-                if (character >= 0)
-                {
-                    escapedCharacterBuilder.Clear();
-                }
-            }
-            else
-            {
-                // \x encoding is strange - it does not have a fixed length. Which looks somewhat
-                // dogy to me, as I can't see how it knows when it ends if followed by a digit?
-                bool expectHex = true;
-                int minimumLengthWithPrefix;
-                int maximumLengthWithPrefix;
-                switch (escapedCharacterBuilder[1])
-                {
-                    case 'x':
-                        minimumLengthWithPrefix = 3;
-                        maximumLengthWithPrefix = 4; // TODO: Check if KiCad allow longer hex escapes
-                        break;
-
-                    case 'U':
-                        minimumLengthWithPrefix = 10;
-                        maximumLengthWithPrefix = 10;
-                        break;
-
-                    case 'u':
-                        minimumLengthWithPrefix = 6;
-                        maximumLengthWithPrefix = 6;
-                        break;
-
-                    default:
-
-                        // Octal
-                        minimumLengthWithPrefix = 2;
-                        maximumLengthWithPrefix = 4;
-                        expectHex = false;
-                        break;
-                }
-
-                bool isValid = (c >= '0' && c <= '7') || (expectHex && ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f')));
-                if (!isValid)
-                {
-                    if (escapedCharacterBuilder.Length >= minimumLengthWithPrefix)
-                    {
-                        wasConsumed = false;
-                    }
-                    else
-                    {
-                        escapedCharacterBuilder.Append(c);
-                        throw new KiCadFileFormatException(this, lineNumber, columnNumber, "Unsupported escape sequence: " + escapedCharacterBuilder.ToString());
-                    }
-                }
-                else
-                {
-                    escapedCharacterBuilder.Append(c);
-                }
-
-                if (!wasConsumed || escapedCharacterBuilder.Length >= maximumLengthWithPrefix)
-                {
-                    if (!expectHex)
-                    {
-                        int decode = 0;
-                        for (int i = 1; i < escapedCharacterBuilder.Length; i++)
-                        {
-                            decode *= 8;
-                            decode += escapedCharacterBuilder[i] - '0';
-                        }
-
-                        escapedCharacterBuilder.Clear();
-                        character = (char)decode;
-                    }
-                    else
-                    {
-                        uint decode = uint.Parse(escapedCharacterBuilder.ToString(2, escapedCharacterBuilder.Length - 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-
-                        bool needsSurregate = escapedCharacterBuilder[1] == 'U' && decode >= 0x10000;
-                        escapedCharacterBuilder.Clear();
-
-                        if (needsSurregate)
-                        {
-                            // Yikes - surregates!
-                            decode -= 0x10000;
-                            uint high = 0xD800 + (decode >> 10);
-                            uint low = 0xDC00 + (decode & 0x03FF);
-
-                            // Write the trailing surregate into the escape buffer as a 4 byte
-                            // unicode char)
-                            escapedCharacterBuilder.Append("\\u");
-                            escapedCharacterBuilder.Append(low.ToString("X4", CultureInfo.InvariantCulture));
-                            character = (char)high;
-                        }
-                        else
-                        {
-                            character = (char)decode;
-                        }
-                    }
-                }
-            }
-
-            return (character >= 0, (char)character, wasEscaped, wasConsumed);
         }
 
         private bool IsWhiteSpace(char c)
