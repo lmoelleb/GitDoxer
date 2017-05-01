@@ -3,7 +3,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Renderer.Tests
+namespace KiCadDoxer.Renderer.Tests
 {
     public class StringLineSource : LineSource
     {
@@ -20,5 +20,14 @@ namespace Renderer.Tests
         {
             return Task.FromResult((TextReader)new StringReader(value));
         }
+
+        public static async Task<string> GetUnescapedString(string escapedString)
+        {
+            using (var source = new StringLineSource(TokenizerMode.SExpresionKiCad, "\"" + escapedString + "\""))
+            {
+                return await source.Read();
+            }
+        }
+
     }
 }
