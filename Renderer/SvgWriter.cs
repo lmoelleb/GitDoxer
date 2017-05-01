@@ -20,7 +20,7 @@ namespace KiCadDoxer.Renderer
             XmlWriterSettings xmlWriterSettings = new XmlWriterSettings
             {
                 Async = true,
-                Indent = RenderContext.Current.PrettyPrint
+                Indent = RenderContext.Current.SchematicRenderSettings.PrettyPrint
             };
 
             this.xmlWriterCreator = new Lazy<Task<XmlWriter>>(async () => XmlWriter.Create(
@@ -90,10 +90,10 @@ namespace KiCadDoxer.Renderer
             if (name == "stroke-width" && value == "0")
             {
                 // KiCad use 0 to determine default length... nice....
-                value = RenderContext.Current.DefaultStrokeWidth.ToString(CultureInfo.InvariantCulture);
+                value = RenderContext.Current.SchematicRenderSettings.DefaultStrokeWidth.ToString(CultureInfo.InvariantCulture);
             }
 
-            if (name == "class" && !RenderContext.Current.AddClasses)
+            if (name == "class" && !RenderContext.Current.SchematicRenderSettings.AddClasses)
             {
                 return;
             }
@@ -133,11 +133,6 @@ namespace KiCadDoxer.Renderer
             var parent = stack.PeekOrDefault();
             await xmlWriter.WriteStartElementAsync(null, name, SvgNs);
 
-            if (stack.Count == 0 && RenderContext.Current.AddXlinkToSheets)
-            {
-                await xmlWriter.WriteAttributeStringAsync("xmlns", "xlink", null, "http://www.w3.org/1999/xlink");
-            }
-
             stack.Push(new ElementStackEntry(parent, name));
         }
 
@@ -168,7 +163,7 @@ namespace KiCadDoxer.Renderer
 
             await WriteAttributeStringAsync("stroke-linecap", "round");
             await WriteAttributeStringAsync("stroke-linejoin", "round");
-            await WriteAttributeStringAsync("stroke-width", RenderContext.Current.DefaultStrokeWidth);
+            await WriteAttributeStringAsync("stroke-width", RenderContext.Current.SchematicRenderSettings.DefaultStrokeWidth);
             await WriteAttributeStringAsync("fill", "none");
             await WriteAttributeStringAsync("class", "kicad schematics");
         }

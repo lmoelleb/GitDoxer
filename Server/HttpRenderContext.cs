@@ -14,21 +14,16 @@ namespace KiCadDoxer.Server
 {
     public class HttpRenderContext : RenderContext
     {
-        private static readonly string[] boolTrueStrings = new[] { "y", "yes", "1", "t", "true" };
-        private bool addClasses;
-        private HttpContext context;
-        private HiddenPinRenderMode? hiddenPins;
-        private bool prettyPrint;
-        private bool showPinNumbers;
+        private HttpContext httpContext;
         private Uri uri;
 
-        public HttpRenderContext(HttpContext context)
+        public HttpRenderContext(HttpContext httpContext)
         {
-            this.context = context;
-            var request = context.Request;
+            this.httpContext = httpContext;
+            var request = httpContext.Request;
 
             // TODO: Proper error if no uri is specified.... or if it is invalid.
-            string path = context.Request.Path;
+            string path = httpContext.Request.Path;
 
             if (path.StartsWith("/github/"))
             {
@@ -59,31 +54,11 @@ namespace KiCadDoxer.Server
                 uri = builder.Uri;
             }
 
-            HiddenPinRenderMode hiddenPinsRenderMode;
-            if (!Enum.TryParse(request.Query["hiddenpins"], true, out hiddenPinsRenderMode))
-            {
-                hiddenPins = HiddenPinRenderMode;
-            }
-
-            showPinNumbers = ((string)request.Query["pinnumbers"] ?? string.Empty).ToLowerInvariant() != "hidden";
-
-            prettyPrint = boolTrueStrings.Contains(((string)request.Query["prettyprint"] ?? string.Empty).ToLowerInvariant());
-
-            addClasses = boolTrueStrings.Contains(((string)request.Query["classes"] ?? string.Empty).ToLowerInvariant());
-
-            context.Response.ContentType = "image/svg+xml";
+            httpContext.Response.ContentType = "image/svg+xml";
 
             // A default value that will hopefully be replaced by an etag value
-            context.Response.Headers["Cache-Control"] = "max-age=30";
+            httpContext.Response.Headers["Cache-Control"] = "max-age=30";
         }
-
-        public override bool AddClasses => addClasses;
-
-        public override HiddenPinRenderMode HiddenPinRenderMode => hiddenPins ?? base.HiddenPinRenderMode;
-
-        public override bool PrettyPrint => prettyPrint;
-
-        public override bool ShowPinNumbers => showPinNumbers;
 
         public static bool CanHandleContext(HttpContext context)
         {
@@ -130,12 +105,12 @@ namespace KiCadDoxer.Server
         // then the methods to deal with etags etc can be moved to it, as they are NOT SETTINGS!
         public override Task<TextWriter> CreateOutputWriter(CancellationToken cancellationToken)
         {
-            return Task.FromResult((TextWriter)new StreamWriter(this.context.Response.Body, Encoding.UTF8));
+            return Task.FromResult((TextWriter)new StreamWriter(this.httpContext.Response.Body, Encoding.UTF8));
         }
 
         public override string GetRequestETagHeaderValue()
         {
-            return context.Request.Headers["If-None-Match"];
+            return httpContext.Request.Headers["If-None-Match"];
         }
 
         public override async Task<bool> HandleException(Exception ex)
@@ -145,7 +120,7 @@ namespace KiCadDoxer.Server
                 // The message (but not callstack) for these exception can be displayed to the caller
                 // - they contain no sensitive information
 
-                if (context.Response.HasStarted)
+                if (httpContext.Response.HasStarted)
                 {
                     // Too late to change the return code. For now, write the error as a comment -
                     // better than nothing. Also consider rendering it as actual text visible in the
@@ -185,19 +160,19 @@ namespace KiCadDoxer.Server
                     // The response has not yet started. So it is an option to return an actual error
                     // code. Consider using some middleware that handles this nicely - maybe on of
                     // them there fancy error pages :)
-                    context.Response.ContentType = "text/plain; charset=\"UTF-8\"";
-                    context.Response.StatusCode = 500;
+                    httpContext.Response.ContentType = "text/plain; charset=\"UTF-8\"";
+                    httpContext.Response.StatusCode = 500;
                     if (ex is KiCadFileNotAvailableException)
                     {
-                        context.Response.StatusCode = (int)((KiCadFileNotAvailableException)ex).StatusCode;
+                        httpContext.Response.StatusCode = (int)((KiCadFileNotAvailableException)ex).StatusCode;
                     }
-                    await context.Response.WriteAsync(ex.Message);
+                    await httpContext.Response.WriteAsync(ex.Message);
 
                     // In case the writer has started up, it will have stuff it will flush to the
                     // reponse stream For now accept this (write a newline to space it out a bit).
                     // Later stop it - worst case put a buffer inbetween where we can turn off
                     // further writes.
-                    await context.Response.WriteAsync("\r\n\r\n");
+                    await httpContext.Response.WriteAsync("\r\n\r\n");
                     return true;
                 }
             }
@@ -207,27 +182,20 @@ namespace KiCadDoxer.Server
 
         public override Task<bool> HandleMatchingETags(CancellationToken cancellationToken)
         {
-            context.Response.StatusCode = (int)HttpStatusCode.NotModified;
+            httpContext.Response.StatusCode = (int)HttpStatusCode.NotModified;
             return Task.FromResult(true);
         }
 
         public override void SetResponseEtagHeaderValue(string etag)
         {
-            context.Response.Headers["Cache-Control"] = "no-cache";
-            context.Response.Headers["ETag"] = etag;
+            httpContext.Response.Headers["Cache-Control"] = "no-cache";
+            httpContext.Response.Headers["ETag"] = etag;
             base.SetResponseEtagHeaderValue(etag);
         }
 
-        public override ComponentFieldRenderMode ShowComponentField(int fieldIndex)
+        protected override SchematicRenderSettings CreateSchematicRenderSettings()
         {
-            string queryParameterName = "componentfield" + fieldIndex.ToString(CultureInfo.InvariantCulture);
-            ComponentFieldRenderMode result;
-            if (!Enum.TryParse(context.Request.Query[queryParameterName], true, out result))
-            {
-                result = ComponentFieldRenderMode.Default;
-            }
-
-            return result;
+            return new HttpSchematicRenderSettings(httpContext);
         }
     }
 }

@@ -31,12 +31,15 @@ namespace KiCadDoxer.Renderer
         private HashSet<(int, int)> wirePositions = new HashSet<(int, int)>();
 
         private SvgWriter SvgWriter => RenderContext.SvgWriter;
+
         private RenderContext RenderContext => RenderContext.Current;
+
+        private SchematicRenderSettings RenderSettings => RenderContext.SchematicRenderSettings;
 
         public async Task HandleSchematic(RenderContext renderContext)
         {
             RenderContext.Current = renderContext;
-            
+
             var cancellationToken = renderContext.CancellationToken;
             using (lineSource = await renderContext.CreateLineSource(cancellationToken))
             {
@@ -351,7 +354,7 @@ namespace KiCadDoxer.Renderer
         // lifted from https://github.com/KiCad/kicad-source-mirror/blob/master/eeschema/sch_text.cpp (SCH_HIERLABEL::GetSchematicTextOffset)
         private (double X, double Y) GetSchematicTextOffset(double lineWidth, int orientation)
         {
-            double offset = TxtMargin + (lineWidth + RenderContext.DefaultStrokeWidth) / 2;
+            double offset = TxtMargin + (lineWidth + RenderSettings.DefaultStrokeWidth) / 2;
 
             double x = 0;
             double y = 0;
@@ -381,7 +384,7 @@ namespace KiCadDoxer.Renderer
         // lifted from https://github.com/KiCad/kicad-source-mirror/blob/master/eeschema/sch_text.cpp (SCH_HIERLABEL::GetSchematicTextOffset)
         private (double X, double Y) GetSchematicTextOffsetHLabel(double lineWidth, double glyphWidth, int orientation)
         {
-            double width = Math.Max(lineWidth, RenderContext.DefaultStrokeWidth);
+            double width = Math.Max(lineWidth, RenderSettings.DefaultStrokeWidth);
             double ii = glyphWidth + TxtMargin + width;
 
             double x = 0;
@@ -590,7 +593,7 @@ namespace KiCadDoxer.Renderer
                 return;
             }
 
-            ComponentFieldRenderMode renderMode = RenderContext.ShowComponentField(fieldTokens[1]);
+            ComponentFieldRenderMode renderMode = RenderSettings.ShowComponentField(fieldTokens[1]);
 
             if (renderMode == ComponentFieldRenderMode.Hide)
             {
@@ -666,7 +669,7 @@ namespace KiCadDoxer.Renderer
             angle += placement.Angle;
 
             string classNames = $"kicad schematics component {placement.Name.ToLowerInvariant()} {placement.Reference.ToLowerInvariant()} component-field-{fieldTokens[1]}";
-            await StrokeFont.DrawText(text, position.X, position.Y, size, stroke, RenderContext.DefaultStrokeWidth, isBold, isItalic, angle, horizontalJustify, verticalJustify, classNames);
+            await StrokeFont.DrawText(text, position.X, position.Y, size, stroke, RenderSettings.DefaultStrokeWidth, isBold, isItalic, angle, horizontalJustify, verticalJustify, classNames);
         }
 
         private async Task HandleComponentFromLibrary(LineSource libraryLineSource)
@@ -753,7 +756,7 @@ namespace KiCadDoxer.Renderer
 
             bool isHidden = pinType == "N";
 
-            if (isHidden && RenderContext.HiddenPinRenderMode == HiddenPinRenderMode.Hide)
+            if (isHidden && RenderSettings.HiddenPinRenderMode == HiddenPinRenderMode.Hide)
             {
                 return;
             }
@@ -820,7 +823,7 @@ namespace KiCadDoxer.Renderer
 
             var pinLineStart = placePin(0, 0);
 
-            if (isHidden && RenderContext.HiddenPinRenderMode == HiddenPinRenderMode.ShowIfConnectedToWire)
+            if (isHidden && RenderSettings.HiddenPinRenderMode == HiddenPinRenderMode.ShowIfConnectedToWire)
             {
                 // Show if connected, and not named the same as the component - this hide the pin
                 // (and more importantly it's name and number) from for example VCC and Ground
@@ -1007,11 +1010,11 @@ namespace KiCadDoxer.Renderer
             }
 
             bool drawName = !string.IsNullOrEmpty(name) && drawPinNames;
-            bool drawPinNumber = !string.IsNullOrEmpty(pinNumber) && drawPinNumbers && RenderContext.ShowPinNumbers;
+            bool drawPinNumber = !string.IsNullOrEmpty(pinNumber) && drawPinNumbers && RenderSettings.ShowPinNumbers;
             double numberTextSize = tokens[8];
             double nameTextSize = tokens[7];
 
-            var defaultLineThickness = RenderContext.DefaultStrokeWidth;
+            var defaultLineThickness = RenderSettings.DefaultStrokeWidth;
 
             if (length > 0)
             {
@@ -1299,11 +1302,11 @@ namespace KiCadDoxer.Renderer
                 }
                 else if (tokens[0] == "F0")
                 {
-                    await StrokeFont.DrawText("Sheet: " + tokens[1], x, y + GetSchematicTextOffset(RenderContext.DefaultStrokeWidth, 0).Y, tokens[2], "rgb(0,132,132)", 0, false, false, 0, TextHorizontalJustify.Left, TextVerticalJustify.Bottom, "sheet-name");
+                    await StrokeFont.DrawText("Sheet: " + tokens[1], x, y + GetSchematicTextOffset(RenderSettings.DefaultStrokeWidth, 0).Y, tokens[2], "rgb(0,132,132)", 0, false, false, 0, TextHorizontalJustify.Left, TextVerticalJustify.Bottom, "sheet-name");
                 }
                 else if (tokens[0] == "F1")
                 {
-                    await StrokeFont.DrawText("File: " + tokens[1], x, y + height - GetSchematicTextOffset(RenderContext.DefaultStrokeWidth, 0).Y, tokens[2], "rgb(132,132,0)", 0, false, false, 0, TextHorizontalJustify.Left, TextVerticalJustify.Top, "file-name");
+                    await StrokeFont.DrawText("File: " + tokens[1], x, y + height - GetSchematicTextOffset(RenderSettings.DefaultStrokeWidth, 0).Y, tokens[2], "rgb(132,132,0)", 0, false, false, 0, TextHorizontalJustify.Left, TextVerticalJustify.Top, "file-name");
                 }
                 else if (tokens[0][0] == 'F')
                 {
@@ -1410,7 +1413,7 @@ namespace KiCadDoxer.Renderer
             // Consider refactoring to a class hierarchy like the KiCad source has it (though they
             // still stuff it in one file...)
 
-            double strokeWidth = RenderContext.DefaultStrokeWidth;
+            double strokeWidth = RenderSettings.DefaultStrokeWidth;
             bool isBold = false;
             string stroke = "rgb(192, 64, 64)"; // Hopefully pink enough I will notice it has not been set :)
             double angle = 0;

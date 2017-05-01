@@ -8,10 +8,11 @@ namespace KiCadDoxer.Renderer
     public abstract class RenderContext
     {
         private static AsyncLocal<RenderContext> current = new AsyncLocal<RenderContext>();
-
+        private Lazy<SchematicRenderSettings> schematicRenderSettings;
 
         public RenderContext()
         {
+            schematicRenderSettings = new Lazy<SchematicRenderSettings>(() => CreateSchematicRenderSettings());
         }
 
         public static RenderContext Current
@@ -35,20 +36,16 @@ namespace KiCadDoxer.Renderer
             }
         }
 
+        protected abstract SchematicRenderSettings CreateSchematicRenderSettings();
 
-        public virtual bool AddClasses => false;
-
-        public virtual bool AddXlinkToSheets => false;
+        internal SchematicRenderSettings SchematicRenderSettings => schematicRenderSettings.Value;
 
         public virtual CancellationToken CancellationToken => CancellationToken.None;
 
-        public virtual double DefaultStrokeWidth => 6;
-
-        public virtual HiddenPinRenderMode HiddenPinRenderMode => HiddenPinRenderMode.Hide;
-
-        public virtual bool PrettyPrint => false;
-
-        public virtual bool ShowPinNumbers => true;
+        // Considered creating it on demand in here, but I want to manage the disposing of it
+        // differently as the context is created by the assembly calling the renderer, while the
+        // SvgWriter is created from within this assembly and needs to be disposed as we finish rendering.
+        public SvgWriter SvgWriter { get; internal set; }
 
         public abstract Task<LineSource> CreateLibraryLineSource(string libraryName, CancellationToken cancellationToken);
 
@@ -69,15 +66,5 @@ namespace KiCadDoxer.Renderer
         public virtual void SetResponseEtagHeaderValue(string etag)
         {
         }
-
-        public virtual ComponentFieldRenderMode ShowComponentField(int fieldIndex)
-        {
-            return ComponentFieldRenderMode.Default;
-        }
-
-        // Considered creating it on demand in here, but I want to manage the disposing of it differently
-        // as the context is created by the assembly calling the renderer, while the SvgWriter is created
-        // from within this assembly and needs to be disposed as we finish rendering.
-        public SvgWriter SvgWriter { get; internal set; }
     }
 }
