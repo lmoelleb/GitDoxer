@@ -17,14 +17,12 @@ namespace KiCadDoxer.Renderer
         private bool isRootElementStartWritten = false;
         private Lazy<Task<XmlWriter>> xmlWriterCreator;
 
-        public SvgWriter()
+        public SvgWriter(RenderSettings renderSettings)
         {
             XmlWriterSettings xmlWriterSettings = new XmlWriterSettings
             {
                 Async = true,
-
-                // TODO: Should not get schematic render settings hardcoded, might be a PCB
-                Indent = RenderContext.Current.SchematicRenderSettings.PrettyPrint
+                Indent = renderSettings.PrettyPrint
             };
 
             this.xmlWriterCreator = new Lazy<Task<XmlWriter>>(async () => XmlWriter.Create(
