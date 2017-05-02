@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Threading.Tasks;
 using System.Xml;
 
@@ -18,6 +19,12 @@ namespace KiCadDoxer.Renderer
         private Lazy<Task<XmlWriter>> xmlWriterCreator;
 
         public SvgWriter(RenderSettings renderSettings)
+            : this(renderSettings, () => RenderContext.Current.CreateOutputWriter(RenderContext.Current.CancellationToken))
+        {
+        }
+
+        // To be used by unit test. No, it is NOT pretty
+        internal SvgWriter(RenderSettings renderSettings, Func<Task<TextWriter>> textWriterFactory)
         {
             XmlWriterSettings xmlWriterSettings = new XmlWriterSettings
             {
@@ -25,10 +32,9 @@ namespace KiCadDoxer.Renderer
                 Indent = renderSettings.PrettyPrint
             };
 
-            this.xmlWriterCreator = new Lazy<Task<XmlWriter>>(async () => XmlWriter.Create(
-                await RenderContext.Current.CreateOutputWriter(RenderContext.Current.CancellationToken), xmlWriterSettings)
-            );
+            this.xmlWriterCreator = new Lazy<Task<XmlWriter>>(async () => XmlWriter.Create(await textWriterFactory(), xmlWriterSettings));
         }
+
 
         public bool IsClosed => isClosed;
 
