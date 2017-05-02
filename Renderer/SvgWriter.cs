@@ -23,7 +23,7 @@ namespace KiCadDoxer.Renderer
         {
         }
 
-        // To be used by unit test. No, it is NOT pretty
+        // To be used by unit test.
         internal SvgWriter(RenderSettings renderSettings, Func<Task<TextWriter>> textWriterFactory)
         {
             XmlWriterSettings xmlWriterSettings = new XmlWriterSettings
@@ -34,7 +34,6 @@ namespace KiCadDoxer.Renderer
 
             this.xmlWriterCreator = new Lazy<Task<XmlWriter>>(async () => XmlWriter.Create(await textWriterFactory(), xmlWriterSettings));
         }
-
 
         public bool IsClosed => isClosed;
 
@@ -131,6 +130,25 @@ namespace KiCadDoxer.Renderer
             }
         }
 
+        public override async Task WriteNonInheritedAttributeStringAsync(string name, string value)
+        {
+            if (!isRootElementStartCompleted)
+            {
+                await base.WriteInheritedAttributeStringAsync(name, value);
+                return;
+            }
+
+            if (name == "class" && !RenderContext.Current.SchematicRenderSettings.AddClasses)
+            {
+                return;
+            }
+
+            // Someone can still choose to inherit eve if this element shouldn't, I do not really care.
+            elementStack.Peek().SetInheritedAttribute(name, value);
+            var xmlWriter = await xmlWriterCreator.Value;
+            await xmlWriter.WriteAttributeStringAsync(null, name, null, value);
+        }
+
         public override async Task WriteStartElementAsync(string name)
         {
             if (!isRootElementStartWritten)
@@ -173,7 +191,7 @@ namespace KiCadDoxer.Renderer
             public string GetInheritedAttribute(string name)
             {
                 string result = null;
-                if (attributeValues != null && !attributeValues.TryGetValue(name, out result))
+                if (attributeValues == null || !attributeValues.TryGetValue(name, out result))
                 {
                     result = parent?.GetInheritedAttribute(name);
                 }
