@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Threading.Tasks;
 
@@ -36,6 +37,7 @@ namespace KiCadDoxer.Renderer
             return WriteInheritedAttributeStringAsync(name, value.ToString(CultureInfo.InvariantCulture));
         }
 
+        [Obsolete("This does not check the type, so use a type specific version instead")]
         public Task WriteInheritedAttributeStringAsync(string name, Token token)
         {
             return WriteInheritedAttributeStringAsync(name, (string)token);
@@ -59,9 +61,9 @@ namespace KiCadDoxer.Renderer
             return Task.CompletedTask;
         }
 
-        public virtual Task WriteTextAsync(string comment)
+        public virtual Task WriteTextAsync(string text)
         {
-            writeOperations.Add(new TextWriteOperation(comment));
+            writeOperations.Add(new TextWriteOperation(text));
             return Task.CompletedTask;
         }
 
@@ -158,14 +160,14 @@ namespace KiCadDoxer.Renderer
         {
             private string text;
 
-            public TextWriteOperation(string comment)
+            public TextWriteOperation(string text)
             {
-                this.text = comment;
+                this.text = text;
             }
 
             protected internal override Task WriteToFragment(SvgFragmentWriter fragment)
             {
-                return fragment.WriteCommentAsync(text);
+                return fragment.WriteTextAsync(text);
             }
         }
 
