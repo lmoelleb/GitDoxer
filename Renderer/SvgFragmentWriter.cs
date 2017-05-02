@@ -20,12 +20,6 @@ namespace KiCadDoxer.Renderer
             return Task.CompletedTask;
         }
 
-        public virtual Task WriteTextAsync(string comment)
-        {
-            writeOperations.Add(new TextWriteOperation(comment));
-            return Task.CompletedTask;
-        }
-        
         public virtual Task WriteEndElementAsync(string name)
         {
             writeOperations.Add(new EndElementWriteOperation(name));
@@ -65,71 +59,21 @@ namespace KiCadDoxer.Renderer
             return Task.CompletedTask;
         }
 
+        public virtual Task WriteTextAsync(string comment)
+        {
+            writeOperations.Add(new TextWriteOperation(comment));
+            return Task.CompletedTask;
+        }
+
         protected async Task WriteTo(SvgFragmentWriter targetWriter)
         {
             foreach (var operation in writeOperations)
             {
                 await operation.WriteToFragment(targetWriter);
             }
+
+            writeOperations.Clear();
         }
-
-        public class ElementStackEntry
-        {
-            private Dictionary<string, string> attributeValues;
-            private ElementStackEntry parent;
-
-            public ElementStackEntry(ElementStackEntry parent, string name)
-            {
-                this.Name = name;
-                this.parent = parent;
-            }
-
-            public string Name { get; }
-
-            public string GetInheritedAttribute(string name)
-            {
-                string result = null;
-                if (attributeValues != null && !attributeValues.TryGetValue(name, out result))
-                {
-                    result = parent?.GetInheritedAttribute(name);
-                }
-
-                return result;
-            }
-
-            public bool SetInheritedAttribute(string name, string value)
-            {
-                if (GetInheritedAttribute(name) == value)
-                {
-                    return false;
-                }
-
-                if (attributeValues == null)
-                {
-                    attributeValues = new Dictionary<string, string>();
-                }
-
-                attributeValues[name] = value;
-
-                return true;
-            }
-        }
-
-        private class TextWriteOperation : WriteOperation
-        {
-            private string text;
-
-            public TextWriteOperation(string comment)
-            {
-                this.text = comment;
-            }
-
-            protected internal override Task WriteToFragment(SvgFragmentWriter fragment)
-            {
-                return fragment.WriteCommentAsync(text);
-            }
-        }
-
 
         private class CommentWriteOperation : WriteOperation
         {
@@ -207,6 +151,21 @@ namespace KiCadDoxer.Renderer
             protected internal override Task WriteToFragment(SvgFragmentWriter fragment)
             {
                 return fragment.WriteStartElementAsync(elementName);
+            }
+        }
+
+        private class TextWriteOperation : WriteOperation
+        {
+            private string text;
+
+            public TextWriteOperation(string comment)
+            {
+                this.text = comment;
+            }
+
+            protected internal override Task WriteToFragment(SvgFragmentWriter fragment)
+            {
+                return fragment.WriteCommentAsync(text);
             }
         }
 

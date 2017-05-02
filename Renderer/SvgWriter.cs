@@ -10,17 +10,19 @@ namespace KiCadDoxer.Renderer
     public class SvgWriter : SvgFragmentWriter, IDisposable
     {
         private const string SvgNs = "http://www.w3.org/2000/svg";
-        private bool isClosed;
-        private bool isRootElementWritten;
         private Stack<ElementStackEntry> elementStack = new Stack<ElementStackEntry>();
-        private Lazy<Task<XmlWriter>> xmlWriterCreator;
         private Stack<SvgFragmentWriter> fragmentWriterStack = new Stack<SvgFragmentWriter>();
+        private bool isClosed;
+        private bool isRootElementStartCompleted = false;
+        private bool isRootElementStartWritten = false;
+        private Lazy<Task<XmlWriter>> xmlWriterCreator;
 
         public SvgWriter()
         {
             XmlWriterSettings xmlWriterSettings = new XmlWriterSettings
             {
                 Async = true,
+
                 // TODO: Should not get schematic render settings hardcoded, might be a PCB
                 Indent = RenderContext.Current.SchematicRenderSettings.PrettyPrint
             };
@@ -32,7 +34,7 @@ namespace KiCadDoxer.Renderer
 
         public bool IsClosed => isClosed;
 
-        public bool IsRootElementWritten => isRootElementWritten;
+        public bool IsRootElementWritten => isRootElementStartWritten;
 
         public async Task CloseAsync()
         {
@@ -45,7 +47,7 @@ namespace KiCadDoxer.Renderer
 
             if (xmlWriterCreator.IsValueCreated)
             {
-                if (isRootElementWritten)
+                if (isRootElementStartWritten)
                 {
                     await WriteEndElementAsync("svg");
                 }
@@ -70,9 +72,42 @@ namespace KiCadDoxer.Renderer
             }
         }
 
+        public override async Task WriteCommentAsync(string comment)
+        {
+            if (!isRootElementStartCompleted)
+            {
+                await base.WriteCommentAsync(comment);
+                return;
+            }
+
+            var xmlWriter = await xmlWriterCreator.Value;
+            await xmlWriter.WriteCommentAsync(comment);
+        }
+
+        public override async Task WriteEndElementAsync(string name)
+        {
+            if (!isRootElementStartCompleted)
+            {
+                isRootElementStartCompleted = true;
+                await WriteTo(this);
+            }
+
+            var xmlWriter = await xmlWriterCreator.Value;
+            await xmlWriter.WriteEndElementAsync();
+            var entry = elementStack.Pop();
+            if (entry.Name != name)
+            {
+                throw new Exception($"Internal SVG render error: Ending element {name} but should end {entry.Name}.");
+            }
+        }
+
         public override async Task WriteInheritedAttributeStringAsync(string name, string value)
         {
-            await EnsureRootElementWritten();
+            if (!isRootElementStartCompleted)
+            {
+                await base.WriteInheritedAttributeStringAsync(name, value);
+                return;
+            }
 
             if (name == "stroke-width" && value == "0")
             {
@@ -92,30 +127,19 @@ namespace KiCadDoxer.Renderer
             }
         }
 
-        public override async Task WriteCommentAsync(string comment)
-        {
-            await EnsureRootElementWritten();
-
-            var xmlWriter = await xmlWriterCreator.Value;
-            await xmlWriter.WriteCommentAsync(comment);
-        }
-
-        public override async Task WriteEndElementAsync(string name)
-        {
-            await EnsureRootElementWritten();
-
-            var xmlWriter = await xmlWriterCreator.Value;
-            await xmlWriter.WriteEndElementAsync();
-            var entry = elementStack.Pop();
-            if (entry.Name != name)
-            {
-                throw new Exception($"Internal SVG render error: Ending element {name} but should end {entry.Name}.");
-            }
-        }
-
         public override async Task WriteStartElementAsync(string name)
         {
-            await EnsureRootElementWritten();
+            if (!isRootElementStartWritten)
+            {
+                isRootElementStartWritten = true;
+                await base.WriteStartElementAsync(name);
+            }
+            else if (!isRootElementStartCompleted)
+            {
+                isRootElementStartCompleted = true;
+                await base.WriteTo(this);
+            }
+
             var xmlWriter = await xmlWriterCreator.Value;
             var parent = elementStack.PeekOrDefault();
             await xmlWriter.WriteStartElementAsync(null, name, SvgNs);
@@ -125,35 +149,50 @@ namespace KiCadDoxer.Renderer
 
         public override async Task WriteTextAsync(string text)
         {
-            await EnsureRootElementWritten();
             var xmlWriter = await xmlWriterCreator.Value;
             await xmlWriter.WriteStringAsync(text);
         }
 
-        private async Task EnsureRootElementWritten()
+        public class ElementStackEntry
         {
-            if (isRootElementWritten)
+            private Dictionary<string, string> attributeValues;
+            private ElementStackEntry parent;
+
+            public ElementStackEntry(ElementStackEntry parent, string name)
             {
-                return;
+                this.Name = name;
+                this.parent = parent;
             }
 
-            isRootElementWritten = true;
-            try
+            public string Name { get; }
+
+            public string GetInheritedAttribute(string name)
             {
-                await WriteStartElementAsync("svg");
-            }
-            catch (Exception)
-            {
-                isRootElementWritten = false;
-                throw;
+                string result = null;
+                if (attributeValues != null && !attributeValues.TryGetValue(name, out result))
+                {
+                    result = parent?.GetInheritedAttribute(name);
+                }
+
+                return result;
             }
 
-            await WriteInheritedAttributeStringAsync("stroke-linecap", "round");
-            await WriteInheritedAttributeStringAsync("stroke-linejoin", "round");
-            await WriteInheritedAttributeStringAsync("stroke-width", RenderContext.Current.SchematicRenderSettings.DefaultStrokeWidth);
-            await WriteInheritedAttributeStringAsync("fill", "none");
-            await WriteInheritedAttributeStringAsync("class", "kicad schematics");
+            public bool SetInheritedAttribute(string name, string value)
+            {
+                if (GetInheritedAttribute(name) == value)
+                {
+                    return false;
+                }
+
+                if (attributeValues == null)
+                {
+                    attributeValues = new Dictionary<string, string>();
+                }
+
+                attributeValues[name] = value;
+
+                return true;
+            }
         }
-
     }
 }

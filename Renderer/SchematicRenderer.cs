@@ -53,6 +53,13 @@ namespace KiCadDoxer.Renderer
                 {
                     try
                     {
+                        await SvgWriter.WriteStartElementAsync("svg");
+                        await SvgWriter.WriteInheritedAttributeStringAsync("stroke-linecap", "round");
+                        await SvgWriter.WriteInheritedAttributeStringAsync("stroke-linejoin", "round");
+                        await SvgWriter.WriteInheritedAttributeStringAsync("stroke-width", RenderContext.Current.SchematicRenderSettings.DefaultStrokeWidth);
+                        await SvgWriter.WriteInheritedAttributeStringAsync("fill", "none");
+                        await SvgWriter.WriteInheritedAttributeStringAsync("class", "kicad schematics");
+
                         Token firstToken;
                         ComponentPlacement currentComponentPlacement = null;
 
