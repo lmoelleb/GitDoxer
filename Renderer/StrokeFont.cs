@@ -179,13 +179,13 @@ namespace KiCadDoxer.Renderer
 
             if (transforms.Any())
             {
-                await svgWriter.WriteAttributeStringAsync("transform", string.Join(" ", transforms));
+                await svgWriter.WriteInheritedAttributeStringAsync("transform", string.Join(" ", transforms));
             }
 
             classNames = (classNames + " glyphs").Trim();
-            await svgWriter.WriteAttributeStringAsync("class", classNames);
-            await svgWriter.WriteAttributeStringAsync("stroke", stroke);
-            await svgWriter.WriteAttributeStringAsync("stroke-width", strokeWidth);
+            await svgWriter.WriteInheritedAttributeStringAsync("class", classNames);
+            await svgWriter.WriteInheritedAttributeStringAsync("stroke", stroke);
+            await svgWriter.WriteInheritedAttributeStringAsync("stroke-width", strokeWidth);
 
             y -= (lines.Length - 1) * lineHeight;
             foreach (var line in lines)
@@ -253,11 +253,11 @@ namespace KiCadDoxer.Renderer
                 }
 
                 await svgWriter.WriteStartElementAsync("line");
-                await svgWriter.WriteAttributeStringAsync("class", "overbar");
-                await svgWriter.WriteAttributeStringAsync("x1", ((int)overbarStartPosition).ToString(CultureInfo.InvariantCulture));
-                await svgWriter.WriteAttributeStringAsync("y1", overbarY.ToString(CultureInfo.InvariantCulture));
-                await svgWriter.WriteAttributeStringAsync("x2", ((int)overbarEndPosition).ToString(CultureInfo.InvariantCulture));
-                await svgWriter.WriteAttributeStringAsync("y2", overbarY.ToString(CultureInfo.InvariantCulture));
+                await svgWriter.WriteInheritedAttributeStringAsync("class", "overbar");
+                await svgWriter.WriteInheritedAttributeStringAsync("x1", ((int)overbarStartPosition).ToString(CultureInfo.InvariantCulture));
+                await svgWriter.WriteInheritedAttributeStringAsync("y1", overbarY.ToString(CultureInfo.InvariantCulture));
+                await svgWriter.WriteInheritedAttributeStringAsync("x2", ((int)overbarEndPosition).ToString(CultureInfo.InvariantCulture));
+                await svgWriter.WriteInheritedAttributeStringAsync("y2", overbarY.ToString(CultureInfo.InvariantCulture));
                 await svgWriter.WriteEndElementAsync("line");
             };
 
@@ -281,7 +281,7 @@ namespace KiCadDoxer.Renderer
                 foreach (var polyLinePoints in GetPolylinePoints(c, x, y, glyphSize))
                 {
                     await svgWriter.WriteStartElementAsync("polyline");
-                    await svgWriter.WriteAttributeStringAsync("points", polyLinePoints);
+                    await svgWriter.WriteInheritedAttributeStringAsync("points", polyLinePoints);
                     await svgWriter.WriteEndElementAsync("polyline");
                 }
                 x += glyphSizeInfo.Width * glyphSize;

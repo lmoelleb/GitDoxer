@@ -464,10 +464,10 @@ namespace KiCadDoxer.Renderer
                           $"0.0 {largeArcFlag} {sweepFlag} {((int)placedEnd.X).ToString(CultureInfo.InvariantCulture)} {((int)placedEnd.Y).ToString(CultureInfo.InvariantCulture)}";
 
             await SvgWriter.WriteStartElementAsync("path");
-            await SvgWriter.WriteAttributeStringAsync("stroke-width", tokens[8]);
-            await SvgWriter.WriteAttributeStringAsync("fill", isFilled ? "rgb(255,255,194)" : "none");
-            await SvgWriter.WriteAttributeStringAsync("stroke", "rgb(132,0,0)");
-            await SvgWriter.WriteAttributeStringAsync("d", path);
+            await SvgWriter.WriteInheritedAttributeStringAsync("stroke-width", tokens[8]);
+            await SvgWriter.WriteInheritedAttributeStringAsync("fill", isFilled ? "rgb(255,255,194)" : "none");
+            await SvgWriter.WriteInheritedAttributeStringAsync("stroke", "rgb(132,0,0)");
+            await SvgWriter.WriteInheritedAttributeStringAsync("d", path);
             await SvgWriter.WriteEndElementAsync("path");
         }
 
@@ -493,12 +493,12 @@ namespace KiCadDoxer.Renderer
 
             var pos = placement.TransformToPlacementMils(tokens[1], tokens[2]);
             await SvgWriter.WriteStartElementAsync("circle");
-            await SvgWriter.WriteAttributeStringAsync("cx", pos.X);
-            await SvgWriter.WriteAttributeStringAsync("cy", pos.Y);
-            await SvgWriter.WriteAttributeStringAsync("r", tokens[3]);
-            await SvgWriter.WriteAttributeStringAsync("stroke-width", tokens[6]);
-            await SvgWriter.WriteAttributeStringAsync("fill", isFilled ? "rgb(255,255,194)" : "none");
-            await SvgWriter.WriteAttributeStringAsync("stroke", "rgb(132,0,0)");
+            await SvgWriter.WriteInheritedAttributeStringAsync("cx", pos.X);
+            await SvgWriter.WriteInheritedAttributeStringAsync("cy", pos.Y);
+            await SvgWriter.WriteInheritedAttributeStringAsync("r", tokens[3]);
+            await SvgWriter.WriteInheritedAttributeStringAsync("stroke-width", tokens[6]);
+            await SvgWriter.WriteInheritedAttributeStringAsync("fill", isFilled ? "rgb(255,255,194)" : "none");
+            await SvgWriter.WriteInheritedAttributeStringAsync("stroke", "rgb(132,0,0)");
             await SvgWriter.WriteEndElementAsync("circle");
         }
 
@@ -541,7 +541,7 @@ namespace KiCadDoxer.Renderer
             foreach (var placement in placements)
             {
                 await SvgWriter.WriteStartElementAsync("g");
-                await SvgWriter.WriteAttributeStringAsync("class", $"component {placement.Name.ToLowerInvariant()} {placement.Reference.ToLowerInvariant()}");
+                await SvgWriter.WriteInheritedAttributeStringAsync("class", $"component {placement.Name.ToLowerInvariant()} {placement.Reference.ToLowerInvariant()}");
 
                 foreach (bool isFilledRenderPass in new[] { true, false })
                 {
@@ -869,9 +869,9 @@ namespace KiCadDoxer.Renderer
 
             // TODO: Write separate classes for Clock, Low, etc - so a pin can be both low and clock
             //       or inverted and clock!
-            await SvgWriter.WriteAttributeStringAsync("class", $"pin pin-{name.ToLowerInvariant()} pin-{pinNumber} {string.Join(" ", dynamicClasses)} pin-dir-{tokens[6].ToLowerInvariant()}");
+            await SvgWriter.WriteInheritedAttributeStringAsync("class", $"pin pin-{name.ToLowerInvariant()} pin-{pinNumber} {string.Join(" ", dynamicClasses)} pin-dir-{tokens[6].ToLowerInvariant()}");
 
-            await SvgWriter.WriteAttributeStringAsync("stroke", pinType == "N" ? "rgb(132,132,132)" : "rgb(132,0,0)");
+            await SvgWriter.WriteInheritedAttributeStringAsync("stroke", pinType == "N" ? "rgb(132,132,132)" : "rgb(132,0,0)");
 
             // For now, always render "invisible" pins - need to support an option to show/hide them
             string stroke = pinType == "N" ? "rgb(132,132,132)" : "rgb(132,0,0)";
@@ -893,9 +893,9 @@ namespace KiCadDoxer.Renderer
                 }
                 var invertCirclePos = placePin(length - 25, 0);
                 await SvgWriter.WriteStartElementAsync("circle");
-                await SvgWriter.WriteAttributeStringAsync("cx", invertCirclePos.X);
-                await SvgWriter.WriteAttributeStringAsync("cy", invertCirclePos.Y);
-                await SvgWriter.WriteAttributeStringAsync("r", "25");
+                await SvgWriter.WriteInheritedAttributeStringAsync("cx", invertCirclePos.X);
+                await SvgWriter.WriteInheritedAttributeStringAsync("cy", invertCirclePos.Y);
+                await SvgWriter.WriteInheritedAttributeStringAsync("r", "25");
                 await SvgWriter.WriteEndElementAsync("circle");
             }
 
@@ -970,23 +970,23 @@ namespace KiCadDoxer.Renderer
             if (isNonLogic)
             {
                 await SvgWriter.WriteStartElementAsync("line");
-                await SvgWriter.WriteAttributeStringAsync("x1", pinLineEnd.X - 25);
-                await SvgWriter.WriteAttributeStringAsync("y1", pinLineEnd.Y - 25);
-                await SvgWriter.WriteAttributeStringAsync("x2", pinLineEnd.X + 25);
-                await SvgWriter.WriteAttributeStringAsync("x2", pinLineEnd.Y + 25);
+                await SvgWriter.WriteInheritedAttributeStringAsync("x1", pinLineEnd.X - 25);
+                await SvgWriter.WriteInheritedAttributeStringAsync("y1", pinLineEnd.Y - 25);
+                await SvgWriter.WriteInheritedAttributeStringAsync("x2", pinLineEnd.X + 25);
+                await SvgWriter.WriteInheritedAttributeStringAsync("x2", pinLineEnd.Y + 25);
                 await SvgWriter.WriteEndElementAsync("line");
                 await SvgWriter.WriteStartElementAsync("line");
-                await SvgWriter.WriteAttributeStringAsync("x1", pinLineEnd.X - 25);
-                await SvgWriter.WriteAttributeStringAsync("y1", pinLineEnd.Y + 25);
-                await SvgWriter.WriteAttributeStringAsync("x2", pinLineEnd.X + 25);
-                await SvgWriter.WriteAttributeStringAsync("x2", pinLineEnd.Y - 25);
+                await SvgWriter.WriteInheritedAttributeStringAsync("x1", pinLineEnd.X - 25);
+                await SvgWriter.WriteInheritedAttributeStringAsync("y1", pinLineEnd.Y + 25);
+                await SvgWriter.WriteInheritedAttributeStringAsync("x2", pinLineEnd.X + 25);
+                await SvgWriter.WriteInheritedAttributeStringAsync("x2", pinLineEnd.Y - 25);
                 await SvgWriter.WriteEndElementAsync("line");
             }
 
             if (polyLine.Count > 2)
             {
                 await SvgWriter.WriteStartElementAsync("polyline");
-                await SvgWriter.WriteAttributeStringAsync("points", string.Join(" ", polyLine.Select(p => $"{p.Item1}, {p.Item2}")));
+                await SvgWriter.WriteInheritedAttributeStringAsync("points", string.Join(" ", polyLine.Select(p => $"{p.Item1}, {p.Item2}")));
                 await SvgWriter.WriteEndElementAsync("polyline");
             }
 
@@ -994,10 +994,10 @@ namespace KiCadDoxer.Renderer
             {
                 await SvgWriter.WriteStartElementAsync("line");
 
-                await SvgWriter.WriteAttributeStringAsync("x1", pinLineStart.X);
-                await SvgWriter.WriteAttributeStringAsync("y1", pinLineStart.Y);
-                await SvgWriter.WriteAttributeStringAsync("x2", pinLineEnd.X);
-                await SvgWriter.WriteAttributeStringAsync("y2", pinLineEnd.Y);
+                await SvgWriter.WriteInheritedAttributeStringAsync("x1", pinLineStart.X);
+                await SvgWriter.WriteInheritedAttributeStringAsync("y1", pinLineStart.Y);
+                await SvgWriter.WriteInheritedAttributeStringAsync("x2", pinLineEnd.X);
+                await SvgWriter.WriteInheritedAttributeStringAsync("y2", pinLineEnd.Y);
 
                 await SvgWriter.WriteEndElementAsync("line");
             }
@@ -1112,16 +1112,16 @@ namespace KiCadDoxer.Renderer
                 points.Append(pos.Y);
             }
 
-            await SvgWriter.WriteAttributeStringAsync("points", points.ToString());
+            await SvgWriter.WriteInheritedAttributeStringAsync("points", points.ToString());
             if (tokens[4] != "0" && tokens[4] != "6")
             {
-                await SvgWriter.WriteAttributeStringAsync("stroke-width", tokens[4]);
+                await SvgWriter.WriteInheritedAttributeStringAsync("stroke-width", tokens[4]);
             }
             if (isFilled)
             {
-                await SvgWriter.WriteAttributeStringAsync("fill", "rgb(255,255,194)");
+                await SvgWriter.WriteInheritedAttributeStringAsync("fill", "rgb(255,255,194)");
             }
-            await SvgWriter.WriteAttributeStringAsync("stroke", "rgb(132,0,0)");
+            await SvgWriter.WriteInheritedAttributeStringAsync("stroke", "rgb(132,0,0)");
             await SvgWriter.WriteEndElementAsync("polyline");
         }
 
@@ -1154,13 +1154,13 @@ namespace KiCadDoxer.Renderer
             //
 
             await SvgWriter.WriteStartElementAsync("rect");
-            await SvgWriter.WriteAttributeStringAsync("x", Math.Min(transformedStart.X, transformedEnd.X));
-            await SvgWriter.WriteAttributeStringAsync("y", Math.Min(transformedStart.Y, transformedEnd.Y));
-            await SvgWriter.WriteAttributeStringAsync("width", Math.Abs(transformedStart.X - transformedEnd.X));
-            await SvgWriter.WriteAttributeStringAsync("height", Math.Abs(transformedStart.Y - transformedEnd.Y));
-            await SvgWriter.WriteAttributeStringAsync("stroke-width", tokens[7]);
-            await SvgWriter.WriteAttributeStringAsync("fill", isFilled ? "rgb(255,255,194)" : "none");
-            await SvgWriter.WriteAttributeStringAsync("stroke", "rgb(132,0,0)");
+            await SvgWriter.WriteInheritedAttributeStringAsync("x", Math.Min(transformedStart.X, transformedEnd.X));
+            await SvgWriter.WriteInheritedAttributeStringAsync("y", Math.Min(transformedStart.Y, transformedEnd.Y));
+            await SvgWriter.WriteInheritedAttributeStringAsync("width", Math.Abs(transformedStart.X - transformedEnd.X));
+            await SvgWriter.WriteInheritedAttributeStringAsync("height", Math.Abs(transformedStart.Y - transformedEnd.Y));
+            await SvgWriter.WriteInheritedAttributeStringAsync("stroke-width", tokens[7]);
+            await SvgWriter.WriteInheritedAttributeStringAsync("fill", isFilled ? "rgb(255,255,194)" : "none");
+            await SvgWriter.WriteInheritedAttributeStringAsync("stroke", "rgb(132,0,0)");
             await SvgWriter.WriteEndElementAsync("rect");
         }
 
@@ -1171,12 +1171,12 @@ namespace KiCadDoxer.Renderer
 
             int x = await lineSource.Read();
             int y = await lineSource.Read();
-            await SvgWriter.WriteAttributeStringAsync("cx", x);
-            await SvgWriter.WriteAttributeStringAsync("cy", y);
-            await SvgWriter.WriteAttributeStringAsync("r", "18");
-            await SvgWriter.WriteAttributeStringAsync("class", "connection");
+            await SvgWriter.WriteInheritedAttributeStringAsync("cx", x);
+            await SvgWriter.WriteInheritedAttributeStringAsync("cy", y);
+            await SvgWriter.WriteInheritedAttributeStringAsync("r", "18");
+            await SvgWriter.WriteInheritedAttributeStringAsync("class", "connection");
 
-            await SvgWriter.WriteAttributeStringAsync("fill", "rgb(0,132,0)");
+            await SvgWriter.WriteInheritedAttributeStringAsync("fill", "rgb(0,132,0)");
             await SvgWriter.WriteEndElementAsync("circle");
 
             wirePositions.Add((x, y));
@@ -1193,9 +1193,9 @@ namespace KiCadDoxer.Renderer
 
             // These attributes should never be inherited - maybe rename the inherited to
             // specifically say inherited? - so WriteInheritedAttributeStringAsync?
-            await SvgWriter.WriteAttributeStringAsync("width", toMM(width));
-            await SvgWriter.WriteAttributeStringAsync("height", toMM(height));
-            await SvgWriter.WriteAttributeStringAsync("viewBox", $"0 0 {width} {height}");
+            await SvgWriter.WriteInheritedAttributeStringAsync("width", toMM(width));
+            await SvgWriter.WriteInheritedAttributeStringAsync("height", toMM(height));
+            await SvgWriter.WriteInheritedAttributeStringAsync("viewBox", $"0 0 {width} {height}");
         }
 
         private async Task<bool> HandleETagHeaders()
@@ -1252,22 +1252,22 @@ namespace KiCadDoxer.Renderer
             noConnectPositions.Add((x, y));
 
             await SvgWriter.WriteStartElementAsync("g");
-            await SvgWriter.WriteAttributeStringAsync("class", "no-connection");
+            await SvgWriter.WriteInheritedAttributeStringAsync("class", "no-connection");
 
-            await SvgWriter.WriteAttributeStringAsync("stroke", "rgb(0,0,132)");
+            await SvgWriter.WriteInheritedAttributeStringAsync("stroke", "rgb(0,0,132)");
 
             await SvgWriter.WriteStartElementAsync("line");
-            await SvgWriter.WriteAttributeStringAsync("x1", x + 25);
-            await SvgWriter.WriteAttributeStringAsync("y1", y + 25);
-            await SvgWriter.WriteAttributeStringAsync("x2", x - 25);
-            await SvgWriter.WriteAttributeStringAsync("y2", y - 25);
+            await SvgWriter.WriteInheritedAttributeStringAsync("x1", x + 25);
+            await SvgWriter.WriteInheritedAttributeStringAsync("y1", y + 25);
+            await SvgWriter.WriteInheritedAttributeStringAsync("x2", x - 25);
+            await SvgWriter.WriteInheritedAttributeStringAsync("y2", y - 25);
             await SvgWriter.WriteEndElementAsync("line");
 
             await SvgWriter.WriteStartElementAsync("line");
-            await SvgWriter.WriteAttributeStringAsync("x1", x - 25);
-            await SvgWriter.WriteAttributeStringAsync("y1", y + 25);
-            await SvgWriter.WriteAttributeStringAsync("x2", x + 25);
-            await SvgWriter.WriteAttributeStringAsync("y2", y - 25);
+            await SvgWriter.WriteInheritedAttributeStringAsync("x1", x - 25);
+            await SvgWriter.WriteInheritedAttributeStringAsync("y1", y + 25);
+            await SvgWriter.WriteInheritedAttributeStringAsync("x2", x + 25);
+            await SvgWriter.WriteInheritedAttributeStringAsync("y2", y - 25);
             await SvgWriter.WriteEndElementAsync("line");
 
             await SvgWriter.WriteEndElementAsync("g");
@@ -1276,7 +1276,7 @@ namespace KiCadDoxer.Renderer
         private async Task HandleSheet()
         {
             await SvgWriter.WriteStartElementAsync("g");
-            await SvgWriter.WriteAttributeStringAsync("class", "sheet");
+            await SvgWriter.WriteInheritedAttributeStringAsync("class", "sheet");
 
             IList<Token> tokens = null;
             int x = 0, y = 0, width = 0, height = 0;
@@ -1293,11 +1293,11 @@ namespace KiCadDoxer.Renderer
                     height = tokens[4];
 
                     await SvgWriter.WriteStartElementAsync("rect");
-                    await SvgWriter.WriteAttributeStringAsync("x", x);
-                    await SvgWriter.WriteAttributeStringAsync("y", y);
-                    await SvgWriter.WriteAttributeStringAsync("width", width);
-                    await SvgWriter.WriteAttributeStringAsync("height", height);
-                    await SvgWriter.WriteAttributeStringAsync("stroke", "rgb(132,0,132)");
+                    await SvgWriter.WriteInheritedAttributeStringAsync("x", x);
+                    await SvgWriter.WriteInheritedAttributeStringAsync("y", y);
+                    await SvgWriter.WriteInheritedAttributeStringAsync("width", width);
+                    await SvgWriter.WriteInheritedAttributeStringAsync("height", height);
+                    await SvgWriter.WriteInheritedAttributeStringAsync("stroke", "rgb(132,0,132)");
                     await SvgWriter.WriteEndElementAsync("rect");
                 }
                 else if (tokens[0] == "F0")
@@ -1451,7 +1451,7 @@ namespace KiCadDoxer.Renderer
 
             // This needs a lot more code... This is just an attempt to put something on the screen
             await SvgWriter.WriteStartElementAsync("g");
-            await SvgWriter.WriteAttributeStringAsync("class", $"text {type.ToString().ToLowerInvariant()}");
+            await SvgWriter.WriteInheritedAttributeStringAsync("class", $"text {type.ToString().ToLowerInvariant()}");
 
             bool swapVertical = false;
             switch (orientation)
@@ -1504,10 +1504,10 @@ namespace KiCadDoxer.Renderer
                 }
 
                 await SvgWriter.WriteStartElementAsync("polyline");
-                await SvgWriter.WriteAttributeStringAsync("class", $"shape");
+                await SvgWriter.WriteInheritedAttributeStringAsync("class", $"shape");
 
-                await SvgWriter.WriteAttributeStringAsync("stroke", stroke);
-                await SvgWriter.WriteAttributeStringAsync("points", points.ToString());
+                await SvgWriter.WriteInheritedAttributeStringAsync("stroke", stroke);
+                await SvgWriter.WriteInheritedAttributeStringAsync("points", points.ToString());
                 await SvgWriter.WriteEndElementAsync("polyline");
             }
 
@@ -1523,14 +1523,14 @@ namespace KiCadDoxer.Renderer
             IList<Token> lineDef = (await lineSource.ReadAllTokensUntilEndOfLine()).ToList();
             await SvgWriter.WriteStartElementAsync("line");
 
-            await SvgWriter.WriteAttributeStringAsync("x1", lineDef[0]);
-            await SvgWriter.WriteAttributeStringAsync("y1", lineDef[1]);
-            await SvgWriter.WriteAttributeStringAsync("x2", lineDef[2]);
-            await SvgWriter.WriteAttributeStringAsync("y2", lineDef[3]);
+            await SvgWriter.WriteInheritedAttributeStringAsync("x1", lineDef[0]);
+            await SvgWriter.WriteInheritedAttributeStringAsync("y1", lineDef[1]);
+            await SvgWriter.WriteInheritedAttributeStringAsync("x2", lineDef[2]);
+            await SvgWriter.WriteInheritedAttributeStringAsync("y2", lineDef[3]);
 
-            await SvgWriter.WriteAttributeStringAsync("class", string.Join(" ", type.Select(l => l.ToLowerInvariant())));
+            await SvgWriter.WriteInheritedAttributeStringAsync("class", string.Join(" ", type.Select(l => l.ToLowerInvariant())));
 
-            await SvgWriter.WriteAttributeStringAsync("stroke", "rgb(0,132,0)");
+            await SvgWriter.WriteInheritedAttributeStringAsync("stroke", "rgb(0,132,0)");
             await SvgWriter.WriteEndElementAsync("line");
 
             wirePositions.Add((lineDef[0], lineDef[1]));

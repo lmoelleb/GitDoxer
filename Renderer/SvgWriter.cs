@@ -7,19 +7,21 @@ using System.Xml;
 
 namespace KiCadDoxer.Renderer
 {
-    public class SvgWriter : IDisposable
+    public class SvgWriter : SvgFragmentWriter, IDisposable
     {
         private const string SvgNs = "http://www.w3.org/2000/svg";
         private bool isClosed;
         private bool isRootElementWritten;
-        private Stack<ElementStackEntry> stack = new Stack<ElementStackEntry>();
+        private Stack<ElementStackEntry> elementStack = new Stack<ElementStackEntry>();
         private Lazy<Task<XmlWriter>> xmlWriterCreator;
+        private Stack<SvgFragmentWriter> fragmentWriterStack = new Stack<SvgFragmentWriter>();
 
         public SvgWriter()
         {
             XmlWriterSettings xmlWriterSettings = new XmlWriterSettings
             {
                 Async = true,
+                // TODO: Should not get schematic render settings hardcoded, might be a PCB
                 Indent = RenderContext.Current.SchematicRenderSettings.PrettyPrint
             };
 
@@ -68,28 +70,13 @@ namespace KiCadDoxer.Renderer
             }
         }
 
-        public Task WriteAttributeStringAsync(string name, int value)
-        {
-            return WriteAttributeStringAsync(name, value.ToString(CultureInfo.InvariantCulture));
-        }
-
-        public Task WriteAttributeStringAsync(string name, double value)
-        {
-            return WriteAttributeStringAsync(name, value.ToString(CultureInfo.InvariantCulture));
-        }
-
-        public Task WriteAttributeStringAsync(string name, Token token)
-        {
-            return WriteAttributeStringAsync(name, (string)token);
-        }
-
-        public async Task WriteAttributeStringAsync(string name, string value)
+        public override async Task WriteInheritedAttributeStringAsync(string name, string value)
         {
             await EnsureRootElementWritten();
 
             if (name == "stroke-width" && value == "0")
             {
-                // KiCad use 0 to determine default length... nice....
+                // KiCad use 0 to specify default length... nice....
                 value = RenderContext.Current.SchematicRenderSettings.DefaultStrokeWidth.ToString(CultureInfo.InvariantCulture);
             }
 
@@ -98,14 +85,14 @@ namespace KiCadDoxer.Renderer
                 return;
             }
 
-            if (stack.Peek().SetInheritedAttribute(name, value))
+            if (elementStack.Peek().SetInheritedAttribute(name, value))
             {
                 var xmlWriter = await xmlWriterCreator.Value;
                 await xmlWriter.WriteAttributeStringAsync(null, name, null, value);
             }
         }
 
-        public async Task WriteCommentAsync(string comment)
+        public override async Task WriteCommentAsync(string comment)
         {
             await EnsureRootElementWritten();
 
@@ -113,30 +100,30 @@ namespace KiCadDoxer.Renderer
             await xmlWriter.WriteCommentAsync(comment);
         }
 
-        public async Task WriteEndElementAsync(string name)
+        public override async Task WriteEndElementAsync(string name)
         {
             await EnsureRootElementWritten();
 
             var xmlWriter = await xmlWriterCreator.Value;
             await xmlWriter.WriteEndElementAsync();
-            var entry = stack.Pop();
+            var entry = elementStack.Pop();
             if (entry.Name != name)
             {
                 throw new Exception($"Internal SVG render error: Ending element {name} but should end {entry.Name}.");
             }
         }
 
-        public async Task WriteStartElementAsync(string name)
+        public override async Task WriteStartElementAsync(string name)
         {
             await EnsureRootElementWritten();
             var xmlWriter = await xmlWriterCreator.Value;
-            var parent = stack.PeekOrDefault();
+            var parent = elementStack.PeekOrDefault();
             await xmlWriter.WriteStartElementAsync(null, name, SvgNs);
 
-            stack.Push(new ElementStackEntry(parent, name));
+            elementStack.Push(new ElementStackEntry(parent, name));
         }
 
-        public async Task WriteStringAsync(string text)
+        public override async Task WriteTextAsync(string text)
         {
             await EnsureRootElementWritten();
             var xmlWriter = await xmlWriterCreator.Value;
@@ -161,53 +148,12 @@ namespace KiCadDoxer.Renderer
                 throw;
             }
 
-            await WriteAttributeStringAsync("stroke-linecap", "round");
-            await WriteAttributeStringAsync("stroke-linejoin", "round");
-            await WriteAttributeStringAsync("stroke-width", RenderContext.Current.SchematicRenderSettings.DefaultStrokeWidth);
-            await WriteAttributeStringAsync("fill", "none");
-            await WriteAttributeStringAsync("class", "kicad schematics");
+            await WriteInheritedAttributeStringAsync("stroke-linecap", "round");
+            await WriteInheritedAttributeStringAsync("stroke-linejoin", "round");
+            await WriteInheritedAttributeStringAsync("stroke-width", RenderContext.Current.SchematicRenderSettings.DefaultStrokeWidth);
+            await WriteInheritedAttributeStringAsync("fill", "none");
+            await WriteInheritedAttributeStringAsync("class", "kicad schematics");
         }
 
-        public class ElementStackEntry
-        {
-            private Dictionary<string, string> attributeValues;
-            private ElementStackEntry parent;
-
-            public ElementStackEntry(ElementStackEntry parent, string name)
-            {
-                this.Name = name;
-                this.parent = parent;
-            }
-
-            public string Name { get; }
-
-            public string GetInheritedAttribute(string name)
-            {
-                string result = null;
-                if (attributeValues != null && !attributeValues.TryGetValue(name, out result))
-                {
-                    result = parent?.GetInheritedAttribute(name);
-                }
-
-                return result;
-            }
-
-            public bool SetInheritedAttribute(string name, string value)
-            {
-                if (GetInheritedAttribute(name) == value)
-                {
-                    return false;
-                }
-
-                if (attributeValues == null)
-                {
-                    attributeValues = new Dictionary<string, string>();
-                }
-
-                attributeValues[name] = value;
-
-                return true;
-            }
-        }
     }
 }
