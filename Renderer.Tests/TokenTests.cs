@@ -86,8 +86,6 @@ namespace KiCadDoxer.Renderer.Tests
         [Fact]
         public async Task UnescapeTwoDigitHex()
         {
-            // TODO: This should fail according to the C standard, so check with KiCad what it will
-            //       actually do!
             Assert.Equal(" ", await StringLineSource.GetUnescapedString(@"\x20"));
         }
     }
