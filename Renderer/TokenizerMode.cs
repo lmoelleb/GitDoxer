@@ -1,6 +1,6 @@
 ﻿namespace KiCadDoxer.Renderer
 {
-    public enum TokenizerMode
+    internal enum TokenizerMode
     {
         Unspecified,
         SExpresionKiCad,

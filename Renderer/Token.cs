@@ -7,7 +7,7 @@ using System.Text;
 
 namespace KiCadDoxer.Renderer
 {
-    public class Token
+    internal class Token
     {
         private static string[] validBooleanFalse = { "N", "0" };
         private static string[] validBooleanTrue = { "Y", "1" };

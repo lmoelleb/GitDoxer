@@ -3,7 +3,7 @@ using System.Xml;
 
 namespace KiCadDoxer.Renderer.Extensions
 {
-    public static class XmlWriterExtensions
+    internal static class XmlWriterExtensions
     {
         private const string SvgNs = "http://www.w3.org/2000/svg";
 

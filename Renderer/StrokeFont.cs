@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace KiCadDoxer.Renderer
 {
-    public static class StrokeFont
+    internal static class StrokeFont
     {
         //See http://docs.kicad-pcb.org/doxygen/stroke__font_8cpp_source.html
 

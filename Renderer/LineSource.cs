@@ -54,7 +54,21 @@ namespace KiCadDoxer.Renderer
 
         internal TokenizerMode Mode { get; set; }
 
-        public async Task<Token> Peek(params TokenTypeOrText[] typesOrTexts)
+        public async Task SkipEmptyLines()
+        {
+            while ((await Peek()).Type == TokenType.LineBreak)
+            {
+                await Read();
+            }
+        }
+
+        public async Task SkipUntilAfterLineBreak()
+        {
+            await SkipWhileNot(TokenType.LineBreak, TokenType.EndOfFile);
+            await Read(); // Consume the linebreak (or EOF, but that is fine, EOF keeps coming :)
+        }
+
+        internal async Task<Token> Peek(params TokenTypeOrText[] typesOrTexts)
         {
             if (Mode == TokenizerMode.Unspecified)
             {
@@ -203,7 +217,7 @@ namespace KiCadDoxer.Renderer
             }
         }
 
-        public async Task<Token> Read(params TokenTypeOrText[] typesOrTexts)
+        internal async Task<Token> Read(params TokenTypeOrText[] typesOrTexts)
         {
             var result = await Peek(typesOrTexts);
             if (result.Type != TokenType.EndOfFile)
@@ -214,7 +228,7 @@ namespace KiCadDoxer.Renderer
             return result;
         }
 
-        public Task<IEnumerable<Token>> ReadAllTokensUntilEndOfLine()
+        internal Task<IEnumerable<Token>> ReadAllTokensUntilEndOfLine()
         {
             // TODO: Clean up messy code I probably want to get rid of this method though (no reading
             // in bulk), so try to remove it instead of cleaning it up
@@ -222,7 +236,7 @@ namespace KiCadDoxer.Renderer
             return ReadAllTokensWhileNot(TokenType.LineBreak, new TokenTypeOrText[] { eof });
         }
 
-        public async Task<IEnumerable<Token>> ReadAllTokensWhileNot(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        internal async Task<IEnumerable<Token>> ReadAllTokensWhileNot(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
         {
             List<Token> result = new List<Token>();
             Token token;
@@ -234,12 +248,12 @@ namespace KiCadDoxer.Renderer
             return result.AsReadOnly();
         }
 
-        public async Task ReadNext(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        internal async Task ReadNext(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
         {
             await SkipWhileNot(typeOrText, typesOrTexts);
         }
 
-        public async Task<string> ReadTextWhileNot(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        internal async Task<string> ReadTextWhileNot(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
         {
             Token token;
             StringBuilder result = new StringBuilder();
@@ -258,21 +272,7 @@ namespace KiCadDoxer.Renderer
             return result.ToString();
         }
 
-        public async Task SkipEmptyLines()
-        {
-            while ((await Peek()).Type == TokenType.LineBreak)
-            {
-                await Read();
-            }
-        }
-
-        public async Task SkipUntilAfterLineBreak()
-        {
-            await SkipWhileNot(TokenType.LineBreak, TokenType.EndOfFile);
-            await Read(); // Consume the linebreak (or EOF, but that is fine, EOF keeps coming :)
-        }
-
-        public async Task SkipWhileNot(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        internal async Task SkipWhileNot(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
         {
             while (true)
             {
@@ -286,7 +286,7 @@ namespace KiCadDoxer.Renderer
             }
         }
 
-        public async Task<Token> TryPeekIf(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        internal async Task<Token> TryPeekIf(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
         {
             var peek = await Peek();
             if (TokenTypeOrText.IsMatching(peek, typeOrText, typesOrTexts))
@@ -297,7 +297,7 @@ namespace KiCadDoxer.Renderer
             return null;
         }
 
-        public async Task<Token> TryPeekUnless(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        internal async Task<Token> TryPeekUnless(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
         {
             var peek = await Peek();
             if (TokenTypeOrText.IsMatching(peek, typeOrText, typesOrTexts))
@@ -308,7 +308,7 @@ namespace KiCadDoxer.Renderer
             return peek;
         }
 
-        public async Task<Token> TryReadIf(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        internal async Task<Token> TryReadIf(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
         {
             if (await TryPeekIf(typeOrText, typesOrTexts) != null)
             {
@@ -319,7 +319,7 @@ namespace KiCadDoxer.Renderer
             return null;
         }
 
-        public async Task<Token> TryReadUnless(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        internal async Task<Token> TryReadUnless(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
         {
             if (await TryPeekUnless(typeOrText, typesOrTexts) != null)
             {
@@ -402,7 +402,7 @@ namespace KiCadDoxer.Renderer
             return c;
         }
 
-        public class TokenTypeOrText
+        internal class TokenTypeOrText
         {
             public static readonly IEnumerable<TokenTypeOrText> EndOfLineTokenTypes = new TokenTypeOrText[] { TokenType.LineBreak, TokenType.EndOfFile };
             private string tokenText;

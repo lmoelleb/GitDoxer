@@ -8,7 +8,7 @@ namespace KiCadDoxer.Renderer.Tests
     {
         private string value;
 
-        public StringLineSource(TokenizerMode mode, string value)
+        internal StringLineSource(TokenizerMode mode, string value)
             : base(CancellationToken.None)
         {
             this.value = value;

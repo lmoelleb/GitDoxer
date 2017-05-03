@@ -9,7 +9,7 @@ using System.Xml;
 
 namespace KiCadDoxer.Renderer
 {
-    public class SvgWriter : SvgFragmentWriter, IDisposable
+    internal class SvgWriter : SvgFragmentWriter, IDisposable
     {
         private const string SvgNs = "http://www.w3.org/2000/svg";
         private Stack<ElementStackEntry> elementStack = new Stack<ElementStackEntry>();

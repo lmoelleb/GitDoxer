@@ -1,6 +1,6 @@
 ﻿namespace KiCadDoxer.Renderer
 {
-    public enum TextHorizontalJustify
+    internal enum TextHorizontalJustify
     {
         Left, Center, Right
     }

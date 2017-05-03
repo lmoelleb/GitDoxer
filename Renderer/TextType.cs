@@ -1,6 +1,6 @@
 ﻿namespace KiCadDoxer.Renderer
 {
-    public enum TextType
+    internal enum TextType
     {
         Unknown,
         Notes,

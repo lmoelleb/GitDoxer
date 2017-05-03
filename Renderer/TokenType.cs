@@ -1,6 +1,6 @@
 ﻿namespace KiCadDoxer.Renderer
 {
-    public enum TokenType
+    internal enum TokenType
     {
         Atom,
         ExpressionOpen,

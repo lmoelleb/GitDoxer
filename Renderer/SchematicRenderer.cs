@@ -250,7 +250,31 @@ namespace KiCadDoxer.Renderer
                     }
                     catch (Exception ex)
                     {
-                        if (!await RenderContext.HandleException(ex))
+                        HandleExceptionResult handleExceptionResult = HandleExceptionResult.Throw;
+                        try
+                        {
+                            bool canAttemptSvgWrite = SvgWriter.IsRootElementWritten && !SvgWriter.IsClosed;
+                            handleExceptionResult = await RenderContext.HandleException(canAttemptSvgWrite, ex);
+                            if (handleExceptionResult.HasFlag(HandleExceptionResult.WriteToSvg) && canAttemptSvgWrite)
+                            {
+                                await SvgWriter.WriteStartElementAsync("text");
+                                await SvgWriter.WriteInheritedAttributeStringAsync("x", "0");
+                                await SvgWriter.WriteInheritedAttributeStringAsync("y", "100");
+                                await SvgWriter.WriteInheritedAttributeStringAsync("stroke", "rgb(255,0,0");
+                                await SvgWriter.WriteInheritedAttributeStringAsync("fill", "rgb(255,0,0");
+                                await SvgWriter.WriteInheritedAttributeStringAsync("font-size", "100");
+                                await SvgWriter.WriteTextAsync(ex.Message);
+                                await SvgWriter.WriteEndElementAsync("text");
+                            }
+                        }
+                        catch
+                        {
+                            // TODO: Log this exception to Application Insights - it has no where
+                            //       else to go as I want to rethrow the original exception.
+                            handleExceptionResult |= HandleExceptionResult.Throw;
+                        }
+
+                        if (handleExceptionResult.HasFlag(HandleExceptionResult.Throw))
                         {
                             throw;
                         }

@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace KiCadDoxer.Renderer
 {
-    public class SvgFragmentWriter
+    internal class SvgFragmentWriter
     {
         private List<WriteOperation> writeOperations = new List<WriteOperation>();
 

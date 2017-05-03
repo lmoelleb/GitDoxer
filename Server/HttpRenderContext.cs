@@ -113,71 +113,38 @@ namespace KiCadDoxer.Server
             return httpContext.Request.Headers["If-None-Match"];
         }
 
-        public override async Task<bool> HandleException(Exception ex)
+        public override async Task<HandleExceptionResult> HandleException(bool canAttempSvgWrite, Exception ex)
         {
-            if (ex is KiCadFileFormatException || ex is KiCadFileNotAvailableException)
+            bool isPublic = ex is KiCadFileFormatException || ex is KiCadFileNotAvailableException;
+            string body = isPublic ? ex.Message : "";
+            if (isPublic && canAttempSvgWrite && httpContext.Response.HasStarted)
             {
-                // The message (but not callstack) for these exception can be displayed to the caller
-                // - they contain no sensitive information
-
-                if (httpContext.Response.HasStarted)
-                {
-                    // Too late to change the return code. For now, write the error as a comment -
-                    // better than nothing. Also consider rendering it as actual text visible in the
-                    // image (need to know if the root node has been written or not), and need access
-                    // to the xml writer
-                    try
-                    {
-                        SvgWriter writer = SvgWriter;
-                        if (writer.IsRootElementWritten && !writer.IsClosed)
-                        {
-                            await writer.WriteStartElementAsync("text");
-                            await writer.WriteInheritedAttributeStringAsync("x", "0");
-                            await writer.WriteInheritedAttributeStringAsync("y", "100");
-                            await writer.WriteInheritedAttributeStringAsync("stroke", "rgb(255,0,0");
-                            await writer.WriteInheritedAttributeStringAsync("fill", "rgb(255,0,0");
-                            await writer.WriteInheritedAttributeStringAsync("font-size", "100");
-                            await writer.WriteTextAsync(ex.Message);
-                            await writer.WriteEndElementAsync("text");
-                        }
-                        else
-                        {
-                            // Most likely this will not be visible in any way, but it is the last
-                            // chance to let the caller know something is wrong.
-                            await writer.WriteCommentAsync(ex.Message);
-                            await writer.FlushAsync();
-                            return false; // Still throw the exception to let the entire pipeline know this went wrong!
-                        }
-                    }
-                    catch
-                    {
-                        // TODO: Log this exception to Application Insights - it has no where else to
-                        //       go as I want to rethrow the original exception.
-                    }
-                }
-                else
-                {
-                    // The response has not yet started. So it is an option to return an actual error
-                    // code. Consider using some middleware that handles this nicely - maybe on of
-                    // them there fancy error pages :)
-                    httpContext.Response.ContentType = "text/plain; charset=\"UTF-8\"";
-                    httpContext.Response.StatusCode = 500;
-                    if (ex is KiCadFileNotAvailableException)
-                    {
-                        httpContext.Response.StatusCode = (int)((KiCadFileNotAvailableException)ex).StatusCode;
-                    }
-                    await httpContext.Response.WriteAsync(ex.Message);
-
-                    // In case the writer has started up, it will have stuff it will flush to the
-                    // reponse stream For now accept this (write a newline to space it out a bit).
-                    // Later stop it - worst case put a buffer inbetween where we can turn off
-                    // further writes.
-                    await httpContext.Response.WriteAsync("\r\n\r\n");
-                    return true;
-                }
+                return HandleExceptionResult.WriteToSvg;
             }
+            else
+            {
+                // The response has not yet started. So it is an option to return an actual error
+                // code. Consider using some middleware that handles this nicely - maybe on of
+                // them there fancy error pages :)
+                httpContext.Response.ContentType = "text/plain; charset=\"UTF-8\"";
+                httpContext.Response.StatusCode = 500;
+                if (ex is KiCadFileNotAvailableException)
+                {
+                    httpContext.Response.StatusCode = (int)((KiCadFileNotAvailableException)ex).StatusCode;
+                }
+                if (isPublic)
+                {
+                    await httpContext.Response.WriteAsync(ex.Message);
+                }
 
-            return false;
+                // In case the writer has started up, it will have stuff it will flush to the
+                // reponse stream For now accept this (write a newline to space it out a bit).
+                // Later stop it - worst case put a buffer inbetween where we can turn off
+                // further writes.
+                await httpContext.Response.WriteAsync("\r\n\r\n");
+
+                return HandleExceptionResult.Ignore;
+            }
         }
 
         public override Task<bool> HandleMatchingETags(CancellationToken cancellationToken)
