@@ -7,6 +7,23 @@ namespace KiCadDoxer.Renderer.Tests
     public class LineSourceTests
     {
         [Fact]
+        public async Task NewlineBackSlashRBackSlashNCombinations()
+        {
+            using (var source = new StringLineSource(TokenizerMode.EeSchema, "\r\r\n\n"))
+            {
+                Token token = await source.Read();
+                Assert.Equal(TokenType.LineBreak, token.Type);
+                Assert.Equal("\r", token.PreceedingWhiteSpace);
+                Assert.Equal("\r\n", token);
+
+                token = await source.Read();
+                Assert.Equal(TokenType.LineBreak, token.Type);
+                Assert.Equal(string.Empty, token.PreceedingWhiteSpace);
+                Assert.Equal("\n", token);
+            }
+        }
+
+        [Fact]
         public async Task NoNonWhiteSpaceCharacterAfterQuotedText()
         {
             using (var source = new StringLineSource(TokenizerMode.SExpresionKiCad, "\"t\"est"))
