@@ -1,4 +1,5 @@
-﻿using KiCadDoxer.Renderer.Extensions;
+﻿using KiCadDoxer.Renderer.Exceptions;
+using KiCadDoxer.Renderer.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -100,7 +101,17 @@ namespace KiCadDoxer.Renderer
             var entry = elementStack.Pop();
             if (entry.Name != name)
             {
-                throw new Exception($"Internal SVG render error: Ending element {name} but should end {entry.Name}.");
+                throw new InternalRenderException($"Ending element {name} but should end {entry.Name}.");
+            }
+
+            if (entry.Name == "svg" && elementStack.Count != 0)
+            {
+                throw new InternalRenderException($"The \"svg\" element must be the last element closed.");
+            }
+
+            if (entry.Name != "svg" && elementStack.Count == 0)
+            {
+                throw new InternalRenderException($"Root element being ended must have the name \"svg\".");
             }
         }
 
@@ -155,6 +166,7 @@ namespace KiCadDoxer.Renderer
             {
                 isRootElementStartWritten = true;
                 await base.WriteStartElementAsync(name);
+                return;
             }
             else if (!isRootElementStartCompleted)
             {
@@ -162,6 +174,10 @@ namespace KiCadDoxer.Renderer
                 await base.WriteTo(this);
             }
 
+            if (elementStack.Count == 0 && name != "svg")
+            {
+                throw new InternalRenderException("The root element must have the name \"svg\".");
+            }
             var xmlWriter = await xmlWriterCreator.Value;
             var parent = elementStack.PeekOrDefault();
             await xmlWriter.WriteStartElementAsync(null, name, SvgNs);
@@ -171,6 +187,12 @@ namespace KiCadDoxer.Renderer
 
         public override async Task WriteTextAsync(string text)
         {
+            if (!isRootElementStartCompleted)
+            {
+                await base.WriteTextAsync(text);
+                return;
+            }
+
             var xmlWriter = await xmlWriterCreator.Value;
             await xmlWriter.WriteStringAsync(text);
         }
