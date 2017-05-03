@@ -21,7 +21,7 @@ namespace KiCadDoxer.Renderer
             {
                 if (current.Value == null)
                 {
-                    throw new InvalidOperationException("Current must be set before it can be accessed. Are you sure it was not set on a different call context (not an ansestor of this task)");
+                    throw new InvalidOperationException("Current must be set before it can be accessed. Are you sure it was not set on a different call context (not an ancestor of this task)");
                 }
 
                 return current.Value;
