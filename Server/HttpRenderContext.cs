@@ -197,5 +197,8 @@ namespace KiCadDoxer.Server
         {
             return new HttpSchematicRenderSettings(httpContext);
         }
+
+        public override CancellationToken CancellationToken => httpContext.RequestAborted;
+
     }
 }
