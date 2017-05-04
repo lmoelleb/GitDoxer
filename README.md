@@ -79,7 +79,7 @@ The full markup syntax used is:
 ## Limitations and known issues
 Please see the Issues list for limitations. If you need a specific feature, leave a note on the issue, or create a pull request.
 
-## Contributing
+## Language choice
 The code is written in .NET Core. I tried using Node.JS to have the lowest barrier to contributing and hosting.
 While I could live with most of the JavaScript limitation due to the simplicity of the task there was *one* I could not accept:
 lack of proper support for asynchronious calls. As far as I could find out async had to be implemented with callbacks. This impacts
@@ -92,6 +92,12 @@ where I am more productive.
 
 In general this is a small project, so don't expect to find any showcase architecture here. The furtherst architecture will be pushed is a bit of dependency injection.
 
-Sure, there should be unit tests - I know, I write them at work. And if you are willing to pay me, I'll write them here as well. :) If you do not want to pay and you do want unit tests, there are two options:
-1. Write them and contribute
-2. Wait until I have to refactor something - then I'll probably write the unit tests for it first.
+## Contributing
+The code in the development branch now is coded according to the CDI (**C**ode **D**amn**i**t) design and development patterns (or more precisely - the lack of design and patterns). It is basically a mess implemented to get a result as fast as possible - which worked for my purpose.
+
+I am currently performing major refactoring to get an improved architecture (nothing fancy - this is a small project) and at least basic unit tests.
+
+Once this refactoring is completed contrinutions will be highly appreciated. You are of course also free to mess with the code before the refactoring completes - just expect it all to be thrown away.
+
+It is currently 
+In the future contributions will be highly appreciated. The current code is under heavy refactoring to add a decent architecture instead of a single class does it all appreoch.
