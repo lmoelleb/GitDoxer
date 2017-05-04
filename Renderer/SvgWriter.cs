@@ -17,16 +17,12 @@ namespace KiCadDoxer.Renderer
         private bool isClosed;
         private bool isRootElementStartCompleted = false;
         private bool isRootElementStartWritten = false;
+        private RenderSettings renderSettings;
         private Lazy<Task<XmlWriter>> xmlWriterCreator;
 
-        public SvgWriter(RenderSettings renderSettings)
-            : this(renderSettings, () => RenderContext.Current.CreateOutputWriter(RenderContext.Current.CancellationToken))
-        {
-        }
-
-        // To be used by unit test.
         internal SvgWriter(RenderSettings renderSettings, Func<Task<TextWriter>> textWriterFactory)
         {
+            this.renderSettings = renderSettings;
             XmlWriterSettings xmlWriterSettings = new XmlWriterSettings
             {
                 Async = true,
@@ -125,11 +121,13 @@ namespace KiCadDoxer.Renderer
 
             if (name == "stroke-width" && value == "0")
             {
-                // KiCad use 0 to specify default length... nice....
+                // KiCad use 0 to specify default length... nice.... I do need a more generic way to
+                // deal with this though, so keeping "Current" for now, so the new unit tests will
+                // throw on it.
                 value = RenderContext.Current.SchematicRenderSettings.DefaultStrokeWidth.ToString(CultureInfo.InvariantCulture);
             }
 
-            if (name == "class" && !RenderContext.Current.SchematicRenderSettings.AddClasses)
+            if (name == "class" && !renderSettings.AddClasses)
             {
                 return;
             }

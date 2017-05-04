@@ -49,7 +49,7 @@ namespace KiCadDoxer.Renderer
                     lineSource.Url = "KiCad Schematic (.SCH)"; // Not ideal, but better than not even knowing if it is in a library or what.
                 }
 
-                using (renderContext.SvgWriter = new SvgWriter(renderContext.SchematicRenderSettings))
+                using (renderContext.SvgWriter = new SvgWriter(renderContext.SchematicRenderSettings, () => renderContext.CreateOutputWriter(renderContext.CancellationToken) ))
                 {
                     try
                     {

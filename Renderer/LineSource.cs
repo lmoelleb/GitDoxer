@@ -106,7 +106,8 @@ namespace KiCadDoxer.Renderer
 
                 if (Mode == TokenizerMode.Automatic)
                 {
-                    // Somewhat simplistic - if the first character encountered is a '(' ON THE FIRST LINE then S expression, else old mode
+                    // Somewhat simplistic - if the first character encountered is a '(' ON THE FIRST
+                    // LINE then S expression, else old mode
                     Mode = read == '(' ? TokenizerMode.SExpresionKiCad : TokenizerMode.EeSchema;
                 }
 
@@ -249,11 +250,6 @@ namespace KiCadDoxer.Renderer
             return result.AsReadOnly();
         }
 
-        internal async Task ReadNext(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
-        {
-            await SkipWhileNot(typeOrText, typesOrTexts);
-        }
-
         internal async Task<string> ReadTextWhileNot(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
         {
             Token token;
@@ -271,6 +267,11 @@ namespace KiCadDoxer.Renderer
             nextToken.PreceedingWhiteSpace = string.Empty; // Should maybe have a nicer way to stop it form being used twice... oh well
 
             return result.ToString();
+        }
+
+        internal async Task SkipToThenRead(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        {
+            await SkipWhileNot(typeOrText, typesOrTexts);
         }
 
         internal async Task SkipWhileNot(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
