@@ -61,7 +61,7 @@ Always hide pin numbers.
 - AddClasses
   - Yes  
   Include CSS classes on the SVG elements.
-  - No
+  - No  
   Do not include CSS classes on the SVG elements (default).
   
 
