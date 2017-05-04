@@ -2,7 +2,7 @@
 {
     internal enum TokenizerMode
     {
-        Unspecified,
+        Automatic,
         SExpresionKiCad,
         EeSchema
     }

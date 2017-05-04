@@ -55,6 +55,39 @@ namespace KiCadDoxer.Renderer.Tests
         }
 
         [Fact]
+        public async Task AutoDetectSExpression()
+        {
+            using (var source = new StringLineSource(TokenizerMode.Automatic, " ("))
+            {
+                Assert.Equal(TokenizerMode.Automatic, source.Mode);
+                Assert.Equal(TokenType.ExpressionOpen, (await source.Read()).Type);
+                Assert.Equal(TokenizerMode.SExpresionKiCad, source.Mode);
+            }
+        }
+
+        [Fact]
+        public async Task AutoDetectEeSchemeFormat()
+        {
+            using (var source = new StringLineSource(TokenizerMode.Automatic, "EESchematic"))
+            {
+                Assert.Equal(TokenizerMode.Automatic, source.Mode);
+                Assert.Equal(TokenType.Atom, (await source.Read()).Type);
+                Assert.Equal(TokenizerMode.EeSchema, source.Mode);
+            }
+        }
+
+        [Fact]
+        public async Task AutoDetectEeSchemeFormatFromEmptyStartLine()
+        {
+            using (var source = new StringLineSource(TokenizerMode.Automatic, "\r\n(test)"))
+            {
+                Assert.Equal(TokenizerMode.Automatic, source.Mode);
+                Assert.Equal(TokenType.LineBreak, (await source.Read()).Type);
+                Assert.Equal(TokenizerMode.EeSchema, source.Mode);
+            }
+        }
+
+        [Fact]
         public async Task ReadEmptyQuotedString()
         {
             Assert.Equal("", await StringLineSource.GetUnescapedString(@""));
@@ -63,7 +96,7 @@ namespace KiCadDoxer.Renderer.Tests
         [Fact]
         public async Task ReadFullLineOfTextWithWhitespaces()
         {
-            using (var source = new StringLineSource(TokenizerMode.SExpresionKiCad, " This is a test \nnot read"))
+            using (var source = new StringLineSource(TokenizerMode.EeSchema, " This is a test \nnot read"))
             {
                 string text = await source.ReadTextWhileNot(TokenType.EndOfFile, TokenType.LineBreak);
                 Assert.Equal(" This is a test ", text);

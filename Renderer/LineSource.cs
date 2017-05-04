@@ -70,11 +70,6 @@ namespace KiCadDoxer.Renderer
 
         internal async Task<Token> Peek(params TokenTypeOrText[] typesOrTexts)
         {
-            if (Mode == TokenizerMode.Unspecified)
-            {
-                throw new InvalidOperationException("The Mode property must be set before reading a token.");
-            }
-
             if (peekedToken != null)
             {
                 TokenTypeOrText.EnsureMatching(peekedToken, typesOrTexts);
@@ -109,8 +104,14 @@ namespace KiCadDoxer.Renderer
                     continue;
                 }
 
+                if (Mode == TokenizerMode.Automatic)
+                {
+                    // Somewhat simplistic - if the first character encountered is a '(' ON THE FIRST LINE then S expression, else old mode
+                    Mode = read == '(' ? TokenizerMode.SExpresionKiCad : TokenizerMode.EeSchema;
+                }
+
                 bool isEoF = read < 0;
-                bool isNewLine = read == '\n';
+                bool isNewLine = read == '\n' && !isWhiteSpace;
                 bool isSExpressionToken = Mode == TokenizerMode.SExpresionKiCad && !inQuotedString && (read == '(' || read == ')');
 
                 if (wasQuotedString && !(isEoF || isWhiteSpace || isNewLine || isSExpressionToken))
@@ -359,7 +360,7 @@ namespace KiCadDoxer.Renderer
                 isWhiteSpaceLookup = temp;
             }
 
-            return c <= ' ' && isWhiteSpaceLookup[c];
+            return c <= ' ' && (isWhiteSpaceLookup[c] || (Mode == TokenizerMode.SExpresionKiCad && c == '\n'));
         }
 
         private async Task<int> ReadChar()
