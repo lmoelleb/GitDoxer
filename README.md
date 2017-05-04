@@ -98,6 +98,3 @@ The code in the development branch now is coded according to the CDI (**C**ode *
 I am currently performing major refactoring to get an improved architecture (nothing fancy - this is a small project) and at least basic unit tests.
 
 Once this refactoring is completed contrinutions will be highly appreciated. You are of course also free to mess with the code before the refactoring completes - just expect it all to be thrown away.
-
-It is currently 
-In the future contributions will be highly appreciated. The current code is under heavy refactoring to add a decent architecture instead of a single class does it all appreoch.
