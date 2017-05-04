@@ -434,7 +434,7 @@ namespace KiCadDoxer.Renderer
                 }
 
                 var expectedTexts = typeOrTexts.Where(t => t.tokenText != null).Select(t => t.tokenText).Distinct().ToList();
-                var expectedTypes = typeOrTexts.Where(t => t.tokenText != null).Select(t => t.tokenType.ToString()).Distinct().ToList();
+                var expectedTypes = typeOrTexts.Where(t => t.tokenText == null).Select(t => t.tokenType.ToString()).Distinct().ToList();
 
                 // Expected a token with the one of the values xxx or one of the types xxx
 
@@ -464,15 +464,15 @@ namespace KiCadDoxer.Renderer
                 }
                 if (expectedTypes.Count > 0)
                 {
-                    typeText += string.Join(", ", expectedTexts);
+                    typeText += string.Join(", ", expectedTypes);
                 }
                 string joinerText = null;
-                if (!string.IsNullOrEmpty(joinerText) && !string.IsNullOrEmpty(typeText))
+                if (!string.IsNullOrEmpty(valueText) && !string.IsNullOrEmpty(typeText))
                 {
                     joinerText = " or ";
                 }
 
-                throw new KiCadFileFormatException(token, $"Expected a token with {expectedTexts}{joinerText}{expectedTypes}. Got \"{token}\" with type {token.Type}.");
+                throw new KiCadFileFormatException(token, $"Expected a token with {valueText}{joinerText}{typeText}. Got \"{token}\" with type {token.Type}.");
             }
 
             public static implicit operator TokenTypeOrText(string text)
