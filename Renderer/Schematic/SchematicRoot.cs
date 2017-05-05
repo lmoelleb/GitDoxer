@@ -14,7 +14,7 @@ namespace KiCadDoxer.Renderer.Schematic
             await lineSource.Read("Schematic");
             await lineSource.Read("File");
             await lineSource.Read("Version");
-            var version = await lineSource.Read(TokenType.Atom);
+            var version = await lineSource.Read(typeof(int));
 
             if (version != "2")
             {
@@ -41,9 +41,12 @@ namespace KiCadDoxer.Renderer.Schematic
                     case "$Descr":
                         await Description.Render(RenderContext, lineSource);
                         break;
+
                     case "$EndSCHEMATC":
+
                         // Really... Someone decided to save an 'I'.. REALLY.
                         fileCompleted = true;
+
                         // Could check nothing follows, but not sure KiCad cares... I don't :)
                         break;
                 }

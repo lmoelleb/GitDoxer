@@ -1,6 +1,7 @@
 ﻿using KiCadDoxer.Renderer.Exceptions;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -68,11 +69,11 @@ namespace KiCadDoxer.Renderer
             await Read(); // Consume the linebreak (or EOF, but that is fine, EOF keeps coming :)
         }
 
-        internal async Task<Token> Peek(params TokenTypeOrText[] typesOrTexts)
+        internal async Task<Token> Peek(params TokenTypeOrContent[] typesOrTexts)
         {
             if ((string)peekedToken != null)
             {
-                TokenTypeOrText.EnsureMatching(peekedToken, typesOrTexts);
+                TokenTypeOrContent.EnsureMatching(peekedToken, typesOrTexts);
                 return peekedToken;
             }
 
@@ -132,7 +133,7 @@ namespace KiCadDoxer.Renderer
                     string escapedTokenValue = tokenStringBuilder.ToString();
 
                     peekedToken = new Token(whiteSpaceStringBuilder.ToString(), escapedTokenValue, this, tokenLineNumber, tokenColumnNumber);
-                    TokenTypeOrText.EnsureMatching(peekedToken, typesOrTexts);
+                    TokenTypeOrContent.EnsureMatching(peekedToken, typesOrTexts);
                     return peekedToken;
                 }
 
@@ -142,7 +143,7 @@ namespace KiCadDoxer.Renderer
                 if (isEoF)
                 {
                     peekedToken = new Token(whiteSpaceStringBuilder.ToString(), string.Empty, TokenType.EndOfFile, this, tokenLineNumber, tokenColumnNumber);
-                    TokenTypeOrText.EnsureMatching(peekedToken, typesOrTexts);
+                    TokenTypeOrContent.EnsureMatching(peekedToken, typesOrTexts);
                     return peekedToken;
                 }
 
@@ -160,7 +161,7 @@ namespace KiCadDoxer.Renderer
                     }
 
                     peekedToken = new Token(whiteSpaceStringBuilder.ToString(), tokenStringBuilder.ToString(), TokenType.LineBreak, this, tokenLineNumber, tokenColumnNumber);
-                    TokenTypeOrText.EnsureMatching(peekedToken, typesOrTexts);
+                    TokenTypeOrContent.EnsureMatching(peekedToken, typesOrTexts);
                     return peekedToken;
                 }
 
@@ -182,7 +183,7 @@ namespace KiCadDoxer.Renderer
                     }
 
                     peekedToken = new Token(whiteSpaceStringBuilder.ToString(), tokenStringBuilder.ToString(), type, this, tokenLineNumber, tokenColumnNumber);
-                    TokenTypeOrText.EnsureMatching(peekedToken, typesOrTexts);
+                    TokenTypeOrContent.EnsureMatching(peekedToken, typesOrTexts);
                     return peekedToken;
                 }
 
@@ -219,7 +220,7 @@ namespace KiCadDoxer.Renderer
             }
         }
 
-        internal async Task<Token> Read(params TokenTypeOrText[] typesOrTexts)
+        internal async Task<Token> Read(params TokenTypeOrContent[] typesOrTexts)
         {
             var result = await Peek(typesOrTexts);
             if (result.Type != TokenType.EndOfFile)
@@ -230,23 +231,15 @@ namespace KiCadDoxer.Renderer
             return result;
         }
 
-        internal async Task SkipToStartOfNextLine()
-        {
-            // TODO: Clean up messy code I probably want to get rid of this method though (no reading
-            // in bulk), so try to remove it instead of cleaning it up
-            TokenTypeOrText eof = TokenType.EndOfFile;
-            await SkipToThenRead(TokenType.LineBreak, new TokenTypeOrText[] { eof });
-        }
-
         internal Task<IEnumerable<Token>> ReadAllTokensUntilEndOfLine()
         {
             // TODO: Clean up messy code I probably want to get rid of this method though (no reading
             // in bulk), so try to remove it instead of cleaning it up
-            TokenTypeOrText eof = TokenType.EndOfFile;
-            return ReadAllTokensWhileNot(TokenType.LineBreak, new TokenTypeOrText[] { eof });
+            TokenTypeOrContent eof = TokenType.EndOfFile;
+            return ReadAllTokensWhileNot(TokenType.LineBreak, new TokenTypeOrContent[] { eof });
         }
 
-        internal async Task<IEnumerable<Token>> ReadAllTokensWhileNot(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        internal async Task<IEnumerable<Token>> ReadAllTokensWhileNot(TokenTypeOrContent typeOrText, params TokenTypeOrContent[] typesOrTexts)
         {
             List<Token> result = new List<Token>();
             Token token;
@@ -258,7 +251,7 @@ namespace KiCadDoxer.Renderer
             return result.AsReadOnly();
         }
 
-        internal async Task<string> ReadTextWhileNot(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        internal async Task<string> ReadTextWhileNot(TokenTypeOrContent typeOrText, params TokenTypeOrContent[] typesOrTexts)
         {
             Token token;
             StringBuilder result = new StringBuilder();
@@ -277,17 +270,25 @@ namespace KiCadDoxer.Renderer
             return result.ToString();
         }
 
-        internal async Task SkipToThenRead(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        internal async Task SkipToStartOfNextLine()
+        {
+            // TODO: Clean up messy code I probably want to get rid of this method though (no reading
+            // in bulk), so try to remove it instead of cleaning it up
+            TokenTypeOrContent eof = TokenType.EndOfFile;
+            await SkipToThenRead(TokenType.LineBreak, new TokenTypeOrContent[] { eof });
+        }
+
+        internal async Task SkipToThenRead(TokenTypeOrContent typeOrText, params TokenTypeOrContent[] typesOrTexts)
         {
             await SkipWhileNot(typeOrText, typesOrTexts);
         }
 
-        internal async Task SkipWhileNot(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        internal async Task SkipWhileNot(TokenTypeOrContent typeOrText, params TokenTypeOrContent[] typesOrTexts)
         {
             while (true)
             {
                 Token token = await Peek();
-                if (TokenTypeOrText.IsMatching(token, typeOrText, typesOrTexts))
+                if (TokenTypeOrContent.IsMatching(token, typeOrText, typesOrTexts))
                 {
                     return;
                 }
@@ -296,10 +297,10 @@ namespace KiCadDoxer.Renderer
             }
         }
 
-        internal async Task<Token> TryPeekIf(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        internal async Task<Token> TryPeekIf(TokenTypeOrContent typeOrText, params TokenTypeOrContent[] typesOrTexts)
         {
             var peek = await Peek();
-            if (TokenTypeOrText.IsMatching(peek, typeOrText, typesOrTexts))
+            if (TokenTypeOrContent.IsMatching(peek, typeOrText, typesOrTexts))
             {
                 return peek;
             }
@@ -307,10 +308,10 @@ namespace KiCadDoxer.Renderer
             return null;
         }
 
-        internal async Task<Token> TryPeekUnless(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        internal async Task<Token> TryPeekUnless(TokenTypeOrContent typeOrText, params TokenTypeOrContent[] typesOrTexts)
         {
             var peek = await Peek();
-            if (TokenTypeOrText.IsMatching(peek, typeOrText, typesOrTexts))
+            if (TokenTypeOrContent.IsMatching(peek, typeOrText, typesOrTexts))
             {
                 return null;
             }
@@ -318,7 +319,7 @@ namespace KiCadDoxer.Renderer
             return peek;
         }
 
-        internal async Task<Token> TryReadIf(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        internal async Task<Token> TryReadIf(TokenTypeOrContent typeOrText, params TokenTypeOrContent[] typesOrTexts)
         {
             if ((string)await TryPeekIf(typeOrText, typesOrTexts) != null)
             {
@@ -329,7 +330,7 @@ namespace KiCadDoxer.Renderer
             return null;
         }
 
-        internal async Task<Token> TryReadUnless(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
+        internal async Task<Token> TryReadUnless(TokenTypeOrContent typeOrText, params TokenTypeOrContent[] typesOrTexts)
         {
             if ((string)await TryPeekUnless(typeOrText, typesOrTexts) != null)
             {
@@ -412,43 +413,67 @@ namespace KiCadDoxer.Renderer
             return c;
         }
 
-        internal class TokenTypeOrText
+        internal class TokenTypeOrContent
         {
-            public static readonly IEnumerable<TokenTypeOrText> EndOfLineTokenTypes = new TokenTypeOrText[] { TokenType.LineBreak, TokenType.EndOfFile };
+            public static readonly IEnumerable<TokenTypeOrContent> EndOfLineTokenTypes = new TokenTypeOrContent[] { TokenType.LineBreak, TokenType.EndOfFile };
+            private Type tokenAtomType;
             private string tokenText;
             private TokenType? tokenType;
 
-            private TokenTypeOrText(string tokenText)
+            private TokenTypeOrContent(Type tokenAtomType)
             {
                 this.tokenType = TokenType.Atom;
+                this.tokenAtomType = tokenAtomType;
+
+                // While developing make sure exceptions are thrown earlier. I would wrap this in #if
+                // DEBUG, but CodeMaid can't handle that.
+                GetTypeDisplayString();
+            }
+
+            private TokenTypeOrContent(string tokenText)
+            {
+                this.tokenType = TokenType.Atom;
+                this.tokenAtomType = typeof(string);
                 this.tokenText = tokenText;
             }
 
-            private TokenTypeOrText(TokenType tokenType)
+            private TokenTypeOrContent(TokenType tokenType)
             {
                 this.tokenType = tokenType;
+                if (this.tokenType == TokenType.Atom)
+                {
+                    tokenAtomType = typeof(string);
+                }
             }
 
-            public static void EnsureMatching(Token token, TokenTypeOrText tokenTypeOrText, IEnumerable<TokenTypeOrText> typeOrTexts)
+            public static void EnsureMatching(Token token, TokenTypeOrContent tokenTypeOrText, IEnumerable<TokenTypeOrContent> typeOrTexts)
             {
                 EnsureMatching(token, tokenTypeOrText.AsEnumerable().Concat(typeOrTexts));
             }
 
-            public static void EnsureMatching(Token token, IEnumerable<TokenTypeOrText> typeOrTexts)
+            public static void EnsureMatching(Token token, IEnumerable<TokenTypeOrContent> typeOrTexts)
             {
                 if (IsMatching(token, typeOrTexts))
                 {
                     return;
                 }
 
-                var expectedTexts = typeOrTexts.Where(t => t.tokenText != null).Select(t => t.tokenText).Distinct().ToList();
-                var expectedTypes = typeOrTexts.Where(t => t.tokenText == null).Select(t => t.tokenType.ToString()).Distinct().ToList();
+                var expectedTexts = (from typeOrText in typeOrTexts
+                                     from text in typeOrText.GetValueDisplayStrings()
+                                     orderby text
+                                     select text).Distinct().ToList();
+
+                var expectedTypes = (from typeOrText in typeOrTexts
+                                     where !typeOrText.GetValueDisplayStrings().Any()
+                                     let text = typeOrText.GetTypeDisplayString()
+                                     orderby text
+                                     select text).Distinct().ToList();
 
                 // Expected a token with the one of the values xxx or one of the types xxx
 
                 // This is not localizable - so any I18N will require this to be split into multiple strings
                 string valueText = null;
-                if (expectedTexts.Count == 1)
+                if (expectedTexts.Count() == 1)
                 {
                     valueText = "the value ";
                 }
@@ -483,22 +508,27 @@ namespace KiCadDoxer.Renderer
                 throw new KiCadFileFormatException(token, $"Expected a token with {valueText}{joinerText}{typeText}. Got \"{token}\" with type {token.Type}.");
             }
 
-            public static implicit operator TokenTypeOrText(string text)
+            public static implicit operator TokenTypeOrContent(string text)
             {
-                return new TokenTypeOrText(text);
+                return new TokenTypeOrContent(text);
             }
 
-            public static implicit operator TokenTypeOrText(TokenType type)
+            public static implicit operator TokenTypeOrContent(TokenType type)
             {
-                return new TokenTypeOrText(type);
+                return new TokenTypeOrContent(type);
             }
 
-            public static bool IsMatching(Token token, TokenTypeOrText typeOrText, IEnumerable<TokenTypeOrText> typeOrTexts)
+            public static implicit operator TokenTypeOrContent(Type atomType)
+            {
+                return new TokenTypeOrContent(atomType);
+            }
+
+            public static bool IsMatching(Token token, TokenTypeOrContent typeOrText, IEnumerable<TokenTypeOrContent> typeOrTexts)
             {
                 return IsMatching(token, typeOrText.AsEnumerable().Concat(typeOrTexts));
             }
 
-            public static bool IsMatching(Token token, IEnumerable<TokenTypeOrText> typeOrTexts)
+            public static bool IsMatching(Token token, IEnumerable<TokenTypeOrContent> typeOrTexts)
             {
                 bool hadData = false; // Ensure single enumeration in typical cases (no parse error)
                 bool result = typeOrTexts.Any(t =>
@@ -526,6 +556,27 @@ namespace KiCadDoxer.Renderer
                 {
                     return false;
                 }
+                else if (tokenAtomType != null)
+                {
+                    if (tokenAtomType == typeof(int))
+                    {
+                        return int.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out int dummy);
+                    }
+                    else if (tokenAtomType == typeof(double))
+                    {
+                        return int.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out int dummy);
+                    }
+                    else if (tokenAtomType == typeof(bool))
+                    {
+                        return Token.validBooleanFalse.Concat(Token.validBooleanTrue).Contains(token);
+                    }
+                    else if (tokenAtomType == typeof(string))
+                    {
+                        return true;
+                    }
+
+                    throw new NotImplementedException($"Atom type {tokenAtomType} is not implemented");
+                }
 
                 return true;
             }
@@ -541,9 +592,51 @@ namespace KiCadDoxer.Renderer
                 return result;
             }
 
-            internal IEnumerable<TokenTypeOrText> AsEnumerable()
+            internal IEnumerable<TokenTypeOrContent> AsEnumerable()
             {
                 yield return this;
+            }
+
+            private string GetTypeDisplayString()
+            {
+                if (tokenType == TokenType.Atom)
+                {
+                    if (tokenAtomType == typeof(int))
+                    {
+                        return "integer";
+                    }
+                    if (tokenAtomType == typeof(double))
+                    {
+                        return "number";
+                    }
+                    if (tokenAtomType == typeof(bool))
+                    {
+                        return "boolean";
+                    }
+                    if (tokenAtomType == typeof(string))
+                    {
+                        return "text";
+                    }
+                    throw new NotImplementedException($"Display for type {tokenAtomType} not implemented. Also implement in IsMatch!");
+                }
+
+                return tokenType.ToString();
+            }
+
+            private IEnumerable<string> GetValueDisplayStrings()
+            {
+                if (tokenAtomType == typeof(bool))
+                {
+                    return Token.validBooleanFalse.Concat(Token.validBooleanTrue);
+                }
+
+                if (tokenText != null)
+                {
+                    // TODO: Should really escape and quote if required
+                    return new[] { tokenText };
+                }
+
+                return Enumerable.Empty<string>();
             }
         }
 

@@ -9,8 +9,8 @@ namespace KiCadDoxer.Renderer
 {
     internal class Token
     {
-        private static string[] validBooleanFalse = { "N", "0" };
-        private static string[] validBooleanTrue = { "Y", "1" };
+        internal static string[] validBooleanFalse = { "N", "0" };
+        internal static string[] validBooleanTrue = { "Y", "1" };
         private Lazy<string> unescapedToken;
 
         internal Token(string preceedingWhiteSpace, string escapedTokenValue, TokenType type, LineSource lineSource, int lineNumber, int columnNumber) : this(preceedingWhiteSpace, escapedTokenValue, lineSource, lineNumber, columnNumber)
@@ -74,17 +74,6 @@ namespace KiCadDoxer.Renderer
             return t?.unescapedToken.Value;
         }
 
-        public override bool Equals(object obj)
-        {
-            Token other = obj as Token;
-            return (string)other != null && other.Type == this.Type && other.unescapedToken == this.unescapedToken;
-        }
-
-        public override int GetHashCode()
-        {
-            return Type.GetHashCode() * 31 + unescapedToken.GetHashCode();
-        }
-
         public static bool operator !=(Token token, String str)
         {
             return (string)token != str;
@@ -103,6 +92,17 @@ namespace KiCadDoxer.Renderer
         public static bool operator ==(String str, Token token)
         {
             return (string)token == str;
+        }
+
+        public override bool Equals(object obj)
+        {
+            Token other = obj as Token;
+            return (string)other != null && other.Type == this.Type && other.unescapedToken == this.unescapedToken;
+        }
+
+        public override int GetHashCode()
+        {
+            return Type.GetHashCode() * 31 + unescapedToken.GetHashCode();
         }
 
         public bool ToBoolean()

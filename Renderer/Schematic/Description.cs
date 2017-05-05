@@ -1,7 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace KiCadDoxer.Renderer.Schematic
@@ -12,12 +10,19 @@ namespace KiCadDoxer.Renderer.Schematic
         {
         }
 
+        public static async Task<Description> Render(RenderContext context, LineSource lineSource)
+        {
+            var description = new Description(context);
+            await description.Render(lineSource);
+            return description;
+        }
+
         public async Task Render(LineSource lineSource)
         {
             await lineSource.Read(TokenType.Atom); // Paper size, for example "A4"
 
-            var width = await lineSource.Read(TokenType.Atom);
-            var height = await lineSource.Read(TokenType.Atom);
+            var width = await lineSource.Read(typeof(int));
+            var height = await lineSource.Read(typeof(int));
             await lineSource.Read(TokenType.LineBreak);
 
             Func<double, string> toMM = mils => (mils * 0.0254).ToString(CultureInfo.InvariantCulture) + "mm";
@@ -41,13 +46,6 @@ namespace KiCadDoxer.Renderer.Schematic
                     await lineSource.SkipToStartOfNextLine();
                 }
             }
-        }
-
-        public static async Task<Description> Render(RenderContext context, LineSource lineSource)
-        {
-            var description = new Description(context);
-            await description.Render(lineSource);
-            return description;
         }
     }
 }
