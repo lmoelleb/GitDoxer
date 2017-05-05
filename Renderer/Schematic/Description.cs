@@ -31,21 +31,9 @@ namespace KiCadDoxer.Renderer.Schematic
             await Writer.WriteNonInheritedAttributeStringAsync("height", toMM(height));
             await Writer.WriteNonInheritedAttributeStringAsync("viewBox", $"0 0 {width} {height}");
 
-            // Skip the rest of the description for now
-            bool descriptionCompleted = false;
-            while (!descriptionCompleted)
-            {
-                var token = await lineSource.Read(TokenType.Atom);
-                if (token == "$EndDescr")
-                {
-                    await lineSource.Read(TokenType.LineBreak);
-                    descriptionCompleted = true;
-                }
-                else
-                {
-                    await lineSource.SkipToStartOfNextLine();
-                }
-            }
+            // For now no page properties besides side are used
+            await lineSource.SkipToLineStartingWith("$EndDescr");
+            await lineSource.SkipToStartOfNextLine();
         }
     }
 }

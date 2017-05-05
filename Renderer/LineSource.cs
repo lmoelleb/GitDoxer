@@ -8,6 +8,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+// TODO: Clean up all the methods building temp arrays to match params signatures
+
 namespace KiCadDoxer.Renderer
 {
     public abstract class LineSource : IDisposable
@@ -270,6 +272,26 @@ namespace KiCadDoxer.Renderer
             return result.ToString();
         }
 
+        internal async Task SkipToLineStartingWith(TokenTypeOrContent typeOrText, params TokenTypeOrContent[] typesOrTexts)
+        {
+            bool found = false;
+            while (!found)
+            {
+                await SkipToStartOfNextLine();
+                var peek = await Peek();
+                if (peek.Type == TokenType.EndOfFile)
+                {
+                    // Force an error mentioning what we are looking for
+                    await Read(new[] { typeOrText }.Concat(typesOrTexts).ToArray());
+                }
+
+                if (TokenTypeOrContent.IsMatching(peek, typeOrText, typesOrTexts))
+                {
+                    found = true;
+                }
+            }
+        }
+
         internal async Task SkipToStartOfNextLine()
         {
             // TODO: Clean up messy code I probably want to get rid of this method though (no reading
@@ -278,9 +300,10 @@ namespace KiCadDoxer.Renderer
             await SkipToThenRead(TokenType.LineBreak, new TokenTypeOrContent[] { eof });
         }
 
-        internal async Task SkipToThenRead(TokenTypeOrContent typeOrText, params TokenTypeOrContent[] typesOrTexts)
+        internal async Task<Token> SkipToThenRead(TokenTypeOrContent typeOrText, params TokenTypeOrContent[] typesOrTexts)
         {
             await SkipWhileNot(typeOrText, typesOrTexts);
+            return await Read(new[] { typeOrText }.Concat(typesOrTexts).ToArray());
         }
 
         internal async Task SkipWhileNot(TokenTypeOrContent typeOrText, params TokenTypeOrContent[] typesOrTexts)

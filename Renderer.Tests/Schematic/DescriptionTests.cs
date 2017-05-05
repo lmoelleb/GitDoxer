@@ -4,7 +4,7 @@ using Xunit;
 
 namespace KiCadDoxer.Renderer.Tests.Schematic
 {
-    public class DescriptionRootTests
+    public class DescriptionTests
     {
         [Theory]
         [InlineData("$Descr", "text")]
@@ -21,11 +21,20 @@ namespace KiCadDoxer.Renderer.Tests.Schematic
         [Fact]
         public async Task SizeWrittenToOutput()
         {
-            var testCase = new SchematicTestRenderContext("$Descr A4 200 100\r\n$EndDescr", true);
+            var testCase = new SchematicTestRenderContext("$Descr A4 200 100\r\nIgnored Line\r\n$EndDescr", true);
             await testCase.Render();
             Assert.Equal("5.08mm", (string)testCase.Result.Root.Attribute("width"));
             Assert.Equal("2.54mm", (string)testCase.Result.Root.Attribute("height"));
             Assert.Equal("0 0 200 100", (string)testCase.Result.Root.Attribute("viewBox"));
         }
+
+        [Fact]
+        public async Task ErrorMentionesMissingEnd()
+        {
+            var testCase = new SchematicTestRenderContext("$Descr A4 200 100", true);
+            var ex = await Assert.ThrowsAsync<KiCadFileFormatException>(async () => await testCase.Render());
+            Assert.Contains("$EndDescr", ex.Message);
+        }
+
     }
 }
