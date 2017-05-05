@@ -10,7 +10,7 @@ namespace KiCadDoxer.Renderer.Tests.Schematic
         [Fact]
         public async Task WrongVersionThrowsException()
         {
-            var testCase = new SchematicTestRenderContext("EESchema Schematic File Version VERSION");
+            var testCase = new SchematicTestRenderContext("EESchema Schematic File Version VERSION", false);
             var ex = await Assert.ThrowsAsync<KiCadFileFormatException>(async () => await testCase.Render());
             // Ugly checking the text of the exception, should introduce sub type
             Assert.Contains("VERSION",  ex.Message);
@@ -26,7 +26,7 @@ namespace KiCadDoxer.Renderer.Tests.Schematic
         [InlineData("EESchema Schematic File Version 2", "EndOfFile")]
         public async Task IncompleteFirstLineThrows(string line, string expectedInException)
         {
-            var testCase = new SchematicTestRenderContext(line);
+            var testCase = new SchematicTestRenderContext(line, false);
             var ex = await Assert.ThrowsAsync<KiCadFileFormatException>(async () => await testCase.Render());
             Assert.Contains(expectedInException, ex.Message);
         }
@@ -34,7 +34,7 @@ namespace KiCadDoxer.Renderer.Tests.Schematic
         [Fact]
         public async Task EmptySchematicGivesEmptySvgRoot()
         {
-            var testCase = new SchematicTestRenderContext("EESchema Schematic File Version 2\r\n$EndSCHEMATC");
+            var testCase = new SchematicTestRenderContext("EESchema Schematic File Version 2\r\n$EndSCHEMATC", false);
             await testCase.Render();
             Assert.Empty(testCase.Result.Root.Elements());
         }

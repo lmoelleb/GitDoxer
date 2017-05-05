@@ -12,9 +12,13 @@ namespace KiCadDoxer.Renderer.Tests.Schematic
         private StringWriter outputWriter = new StringWriter();
         private Lazy<XDocument> result;
 
-        public SchematicTestRenderContext(string fileContent)
+        public SchematicTestRenderContext(string fileContent, bool applyHeaderAutomatically)
         {
             this.fileContent = fileContent;
+            if (applyHeaderAutomatically)
+            {
+                this.fileContent = "EESchema Schematic File Version 2\n" + fileContent + "\n$EndSCHEMATC";
+            }
             result = new Lazy<XDocument>(() => XDocument.Parse(outputWriter.ToString()));
         }
 

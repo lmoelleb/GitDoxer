@@ -71,12 +71,38 @@ namespace KiCadDoxer.Renderer
 
         public static implicit operator string(Token t)
         {
-            if (t == null)
-            {
-                return null;
-            }
+            return t?.unescapedToken.Value;
+        }
 
-            return t.unescapedToken.Value;
+        public override bool Equals(object obj)
+        {
+            Token other = obj as Token;
+            return (string)other != null && other.Type == this.Type && other.unescapedToken == this.unescapedToken;
+        }
+
+        public override int GetHashCode()
+        {
+            return Type.GetHashCode() * 31 + unescapedToken.GetHashCode();
+        }
+
+        public static bool operator !=(Token token, String str)
+        {
+            return (string)token != str;
+        }
+
+        public static bool operator !=(String str, Token token)
+        {
+            return (string)token != str;
+        }
+
+        public static bool operator ==(Token token, String str)
+        {
+            return (string)token == str;
+        }
+
+        public static bool operator ==(String str, Token token)
+        {
+            return (string)token == str;
         }
 
         public bool ToBoolean()

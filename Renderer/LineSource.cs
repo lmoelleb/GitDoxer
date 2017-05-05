@@ -70,7 +70,7 @@ namespace KiCadDoxer.Renderer
 
         internal async Task<Token> Peek(params TokenTypeOrText[] typesOrTexts)
         {
-            if (peekedToken != null)
+            if ((string)peekedToken != null)
             {
                 TokenTypeOrText.EnsureMatching(peekedToken, typesOrTexts);
                 return peekedToken;
@@ -230,6 +230,14 @@ namespace KiCadDoxer.Renderer
             return result;
         }
 
+        internal async Task SkipToStartOfNextLine()
+        {
+            // TODO: Clean up messy code I probably want to get rid of this method though (no reading
+            // in bulk), so try to remove it instead of cleaning it up
+            TokenTypeOrText eof = TokenType.EndOfFile;
+            await SkipToThenRead(TokenType.LineBreak, new TokenTypeOrText[] { eof });
+        }
+
         internal Task<IEnumerable<Token>> ReadAllTokensUntilEndOfLine()
         {
             // TODO: Clean up messy code I probably want to get rid of this method though (no reading
@@ -242,7 +250,7 @@ namespace KiCadDoxer.Renderer
         {
             List<Token> result = new List<Token>();
             Token token;
-            while ((token = await TryReadUnless(typeOrText, typesOrTexts)) != null)
+            while ((string)(token = await TryReadUnless(typeOrText, typesOrTexts)) != null)
             {
                 result.Add(token);
             }
@@ -255,7 +263,7 @@ namespace KiCadDoxer.Renderer
             Token token;
             StringBuilder result = new StringBuilder();
             var peekedStart = await Peek();
-            while ((token = await TryReadUnless(typeOrText, typesOrTexts)) != null)
+            while ((string)(token = await TryReadUnless(typeOrText, typesOrTexts)) != null)
             {
                 result.Append(token.PreceedingWhiteSpace);
                 result.Append((string)token);
@@ -312,7 +320,7 @@ namespace KiCadDoxer.Renderer
 
         internal async Task<Token> TryReadIf(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
         {
-            if (await TryPeekIf(typeOrText, typesOrTexts) != null)
+            if ((string)await TryPeekIf(typeOrText, typesOrTexts) != null)
             {
                 // No need to check the type again... I hope :)
                 return await Read();
@@ -323,7 +331,7 @@ namespace KiCadDoxer.Renderer
 
         internal async Task<Token> TryReadUnless(TokenTypeOrText typeOrText, params TokenTypeOrText[] typesOrTexts)
         {
-            if (await TryPeekUnless(typeOrText, typesOrTexts) != null)
+            if ((string)await TryPeekUnless(typeOrText, typesOrTexts) != null)
             {
                 // No need to check the type again... I hope :)
                 return await Read();
