@@ -5,11 +5,18 @@ namespace KiCadDoxer.Renderer.Schematic
 {
     internal class SchematicRoot : RenderItem
     {
-        public SchematicRoot(RenderContext renderContext) : base(renderContext)
+        private SchematicRoot(RenderContext renderContext) : base(renderContext)
         {
         }
 
-        public async Task Render(LineSource lineSource)
+        public static async Task<SchematicRoot> Render(RenderContext renderContext, LineSource lineSource)
+        {
+            var root = new SchematicRoot(renderContext);
+            await root.Render(lineSource);
+            return root;
+        }
+
+        private async Task Render(LineSource lineSource)
         {
             await lineSource.Read("Schematic");
             await lineSource.Read("File");
@@ -48,6 +55,10 @@ namespace KiCadDoxer.Renderer.Schematic
                         fileCompleted = true;
 
                         // Could check nothing follows, but not sure KiCad cares... I don't :)
+                        break;
+
+                    case "Wire":
+                        await Wire.Render(RenderContext, lineSource);
                         break;
                 }
             }

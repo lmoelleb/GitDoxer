@@ -94,7 +94,7 @@ namespace KiCadDoxer.Renderer
                                 {
                                     lineSource.Url = "KiCad Schematic File";
                                 }
-                                await new SchematicRoot(this).Render(lineSource);
+                                await SchematicRoot.Render(this, lineSource);
                                 break;
 
                             case "kicad_pcb":

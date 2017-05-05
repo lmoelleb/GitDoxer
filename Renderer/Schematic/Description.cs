@@ -6,7 +6,7 @@ namespace KiCadDoxer.Renderer.Schematic
 {
     internal class Description : RenderItem
     {
-        public Description(RenderContext renderContext) : base(renderContext)
+        private Description(RenderContext renderContext) : base(renderContext)
         {
         }
 
