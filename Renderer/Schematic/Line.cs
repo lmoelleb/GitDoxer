@@ -43,7 +43,7 @@ namespace KiCadDoxer.Renderer.Schematic
             else if (type == "Notes")
             {
                 await Writer.WriteInheritedAttributeStringAsync("stroke", "rgb(0,0,132)");
-                await Writer.WriteInheritedAttributeStringAsync("stroke-dasharray", "136.85,158.425"); // Constants lifted from example SVG export from KiCad
+                await Writer.WriteInheritedAttributeStringAsync("stroke-dasharray", "13.685,15.8425"); // Constants lifted from example SVG export from KiCad
             }
             else
             {

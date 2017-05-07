@@ -69,7 +69,7 @@ namespace KiCadDoxer.Renderer.Tests.Schematic
             var svgLine = testCase.Result.Root.Elements().Single();
             Assert.Equal(svgLine.Name.LocalName, "line");
             Assert.Equal("rgb(0,0,132)", (string)svgLine.Attribute("stroke"));
-            Assert.Equal("136.85,158.425", (string)svgLine.Attribute("stroke-dasharray"));
+            Assert.Equal("13.685,15.8425", (string)svgLine.Attribute("stroke-dasharray"));
             Assert.Equal("1", (string)svgLine.Attribute("x1"));
             Assert.Equal("2", (string)svgLine.Attribute("y1"));
             Assert.Equal("3", (string)svgLine.Attribute("x2"));
