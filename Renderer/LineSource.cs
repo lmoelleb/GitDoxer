@@ -22,6 +22,7 @@ namespace KiCadDoxer.Renderer
         private CancellationTokenSource combinedCancellationTokenSource;
         private CancellationTokenSource disposedCancellationTokenSource = new CancellationTokenSource();
         private Lazy<Task<string>> etagTask;
+        private Token lastPeekedToken;
         private int lineNumber = 1;
         private int? peekedChar;
         private string peekedLine;
@@ -228,6 +229,7 @@ namespace KiCadDoxer.Renderer
             if (result.Type != TokenType.EndOfFile)
             {
                 // Keep returning EndOfFile to avoid dealing with null
+                lastPeekedToken = peekedToken;
                 peekedToken = null;
             }
             return result;
@@ -275,9 +277,15 @@ namespace KiCadDoxer.Renderer
         internal async Task SkipToLineStartingWith(TokenTypeOrContent typeOrText, params TokenTypeOrContent[] typesOrTexts)
         {
             bool found = false;
+
+            if (lastPeekedToken != (string)null && lastPeekedToken.Type != TokenType.LineBreak)
+            {
+                // We are half way into a line, so move to the next before starting the search
+                await SkipToStartOfNextLine();
+            }
+
             while (!found)
             {
-                await SkipToStartOfNextLine();
                 var peek = await Peek();
                 if (peek.Type == TokenType.EndOfFile)
                 {
@@ -288,6 +296,10 @@ namespace KiCadDoxer.Renderer
                 if (TokenTypeOrContent.IsMatching(peek, typeOrText, typesOrTexts))
                 {
                     found = true;
+                }
+                else
+                {
+                    await SkipToStartOfNextLine();
                 }
             }
         }
@@ -606,13 +618,11 @@ namespace KiCadDoxer.Renderer
 
             public override string ToString()
             {
-                string result = tokenType.ToString();
-                if (tokenType == TokenType.Atom && tokenText != null)
+                if (tokenText != null)
                 {
-                    result += $"{{{tokenText}}}";
+                    return "\"" + tokenText + "\"";
                 }
-
-                return result;
+                return GetTypeDisplayString();
             }
 
             internal IEnumerable<TokenTypeOrContent> AsEnumerable()

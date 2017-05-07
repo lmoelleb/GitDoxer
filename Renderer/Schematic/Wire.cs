@@ -8,23 +8,23 @@ namespace KiCadDoxer.Renderer.Schematic
         {
         }
 
-        public static async Task<Wire> Render(RenderContext context, LineSource lineSource)
+        public static async Task<Wire> Render(RenderContext context)
         {
             var wire = new Wire(context);
-            await wire.Render(lineSource);
+            await wire.Render();
             return wire;
         }
 
-        public async Task Render(LineSource lineSource)
+        public async Task Render()
         {
-            var type = await lineSource.Read("Wire", "Bus");
-            await lineSource.Read("Line");
-            await lineSource.Read(TokenType.LineBreak);
-            var x1 = await lineSource.Read(typeof(int));
-            var y1 = await lineSource.Read(typeof(int));
-            var x2 = await lineSource.Read(typeof(int));
-            var y2 = await lineSource.Read(typeof(int));
-            await lineSource.Read(TokenType.LineBreak);
+            var type = await LineSource.Read("Wire", "Bus");
+            await LineSource.Read("Line");
+            await LineSource.Read(TokenType.LineBreak);
+            var x1 = await LineSource.Read(typeof(int));
+            var y1 = await LineSource.Read(typeof(int));
+            var x2 = await LineSource.Read(typeof(int));
+            var y2 = await LineSource.Read(typeof(int));
+            await LineSource.Read(TokenType.LineBreak);
 
             await Writer.WriteStartElementAsync("line");
 

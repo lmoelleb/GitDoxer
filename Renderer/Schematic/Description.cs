@@ -10,20 +10,20 @@ namespace KiCadDoxer.Renderer.Schematic
         {
         }
 
-        public static async Task<Description> Render(RenderContext context, LineSource lineSource)
+        public static async Task<Description> Render(RenderContext context)
         {
             var description = new Description(context);
-            await description.Render(lineSource);
+            await description.Render();
             return description;
         }
 
-        public async Task Render(LineSource lineSource)
+        public async Task Render()
         {
-            await lineSource.Read(TokenType.Atom); // Paper size, for example "A4"
+            await LineSource.Read(TokenType.Atom); // Paper size, for example "A4"
 
-            var width = await lineSource.Read(typeof(int));
-            var height = await lineSource.Read(typeof(int));
-            await lineSource.Read(TokenType.LineBreak);
+            var width = await LineSource.Read(typeof(int));
+            var height = await LineSource.Read(typeof(int));
+            await LineSource.Read(TokenType.LineBreak);
 
             Func<double, string> toMM = mils => (mils * 0.0254).ToString(CultureInfo.InvariantCulture) + "mm";
 
@@ -32,8 +32,8 @@ namespace KiCadDoxer.Renderer.Schematic
             await Writer.WriteNonInheritedAttributeStringAsync("viewBox", $"0 0 {width} {height}");
 
             // For now no page properties besides side are used
-            await lineSource.SkipToLineStartingWith("$EndDescr");
-            await lineSource.SkipToStartOfNextLine();
+            await LineSource.SkipToLineStartingWith("$EndDescr");
+            await LineSource.SkipToStartOfNextLine();
         }
     }
 }

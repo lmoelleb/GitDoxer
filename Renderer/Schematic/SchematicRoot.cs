@@ -9,26 +9,26 @@ namespace KiCadDoxer.Renderer.Schematic
         {
         }
 
-        public static async Task<SchematicRoot> Render(RenderContext renderContext, LineSource lineSource)
+        public static async Task<SchematicRoot> Render(RenderContext renderContext)
         {
             var root = new SchematicRoot(renderContext);
-            await root.Render(lineSource);
+            await root.Render();
             return root;
         }
 
-        private async Task Render(LineSource lineSource)
+        private async Task Render()
         {
-            await lineSource.Read("Schematic");
-            await lineSource.Read("File");
-            await lineSource.Read("Version");
-            var version = await lineSource.Read(typeof(int));
+            await LineSource.Read("Schematic");
+            await LineSource.Read("File");
+            await LineSource.Read("Version");
+            var version = await LineSource.Read(typeof(int));
 
             if (version != "2")
             {
                 throw new KiCadFileFormatException(version, "Only file version 2 is supported, got version " + version);
             }
 
-            await lineSource.Read(TokenType.LineBreak);
+            await LineSource.Read(TokenType.LineBreak);
 
             await Writer.WriteStartElementAsync("svg");
             await Writer.WriteInheritedAttributeStringAsync("stroke-linecap", "round");
@@ -41,12 +41,12 @@ namespace KiCadDoxer.Renderer.Schematic
             while (!fileCompleted)
             {
                 Token token;
-                await lineSource.SkipEmptyLines();
-                token = await lineSource.Read(TokenType.Atom);
+                await LineSource.SkipEmptyLines();
+                token = await LineSource.Read(TokenType.Atom);
                 switch ((string)token)
                 {
                     case "$Descr":
-                        await Description.Render(RenderContext, lineSource);
+                        await Description.Render(RenderContext);
                         break;
 
                     case "$EndSCHEMATC":
@@ -58,7 +58,7 @@ namespace KiCadDoxer.Renderer.Schematic
                         break;
 
                     case "Wire":
-                        await Wire.Render(RenderContext, lineSource);
+                        await Wire.Render(RenderContext);
                         break;
                 }
             }

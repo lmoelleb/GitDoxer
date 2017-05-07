@@ -1,7 +1,6 @@
 ﻿using KiCadDoxer.Renderer.Exceptions;
 using KiCadDoxer.Renderer.Schematic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -42,7 +41,7 @@ namespace KiCadDoxer.Renderer.Tests.Schematic
         public async Task IncompleteLineOrWrongTokensThrows(string line, string expectedInException)
         {
             var testCase = new SchematicTestRenderContext(line, false);
-            var ex = await Assert.ThrowsAsync<KiCadFileFormatException>(async () => await Wire.Render(testCase, await testCase.CreateLineSource(CancellationToken.None)));
+            var ex = await Assert.ThrowsAsync<KiCadFileFormatException>(async () => await Wire.Render(testCase));
             Assert.Contains(expectedInException, ex.Message);
         }
 

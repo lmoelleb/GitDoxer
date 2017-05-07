@@ -8,21 +8,31 @@ namespace KiCadDoxer.Renderer.Tests.Schematic
 {
     public class SchematicTestRenderContext : RenderContext
     {
-        private string fileContent;
+        private Lazy<LineSource> lineSource;
         private StringWriter outputWriter = new StringWriter();
         private Lazy<XDocument> result;
 
         public SchematicTestRenderContext(string fileContent, bool applyHeaderAutomatically)
         {
-            this.fileContent = fileContent;
             if (applyHeaderAutomatically)
             {
-                this.fileContent = "EESchema Schematic File Version 2\n" + fileContent + "\n$EndSCHEMATC";
+                fileContent = "EESchema Schematic File Version 2\n" + fileContent + "\n$EndSCHEMATC";
             }
+
+            lineSource = new Lazy<LineSource>(() => new StringLineSource(fileContent));
+
             result = new Lazy<XDocument>(() => XDocument.Parse(outputWriter.ToString()));
         }
 
         public XDocument Result => result.Value;
+
+        internal override LineSource LineSource
+        {
+            get
+            {
+                return base.LineSource ?? lineSource.Value;
+            }
+        }
 
         public override Task<LineSource> CreateLibraryLineSource(string libraryName, CancellationToken cancellationToken)
         {
@@ -31,7 +41,7 @@ namespace KiCadDoxer.Renderer.Tests.Schematic
 
         public override Task<LineSource> CreateLineSource(CancellationToken cancellationToken)
         {
-            return Task.FromResult((LineSource)new StringLineSource(fileContent));
+            return Task.FromResult(lineSource.Value);
         }
 
         public override Task<TextWriter> CreateOutputWriter(CancellationToken cancellationToken)

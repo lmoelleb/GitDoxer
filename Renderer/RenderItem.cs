@@ -7,6 +7,8 @@
             this.RenderContext = renderContext;
         }
 
+        protected LineSource LineSource => RenderContext.LineSource;
+
         protected RenderContext RenderContext { get; private set; }
 
         protected SchematicRenderSettings Settings => RenderContext.SchematicRenderSettings;

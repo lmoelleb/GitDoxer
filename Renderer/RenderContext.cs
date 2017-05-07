@@ -41,6 +41,9 @@ namespace KiCadDoxer.Renderer
 
         public virtual CancellationToken CancellationToken => CancellationToken.None;
 
+        // Only virtual for the UnitTest so it can bypass the create method. Maybe worth refactoring!
+        internal virtual LineSource LineSource { get; private set; }
+
         internal SchematicRenderSettings SchematicRenderSettings => schematicRenderSettings.Value;
 
         internal SvgWriter SvgWriter { get; set; }
@@ -64,23 +67,23 @@ namespace KiCadDoxer.Renderer
         public async Task Render()
         {
             // Consider passing in the linesource as a parameter - but that is a refactoring for later.
-            using (var lineSource = await CreateLineSource(CancellationToken))
+            using (LineSource = await CreateLineSource(CancellationToken))
             {
                 bool setUrl = false;
-                if (string.IsNullOrEmpty(lineSource.Url))
+                if (string.IsNullOrEmpty(LineSource.Url))
                 {
                     setUrl = true;
-                    lineSource.Url = "Main KiCad file"; // Not ideal, but better than not even knowing if it is in a library or what.
+                    LineSource.Url = "Main KiCad file"; // Not ideal, but better than not even knowing if it is in a library or what.
                 }
 
                 // The KiCad team is planning (or maybe already working on) EESchema using
                 // S-Expressions like pcbnew. Next to this, old pcb files use a format similar to
                 // what EESchema use at the time I wrote this comment. But for now, assume legacy
                 // format for EESchema, and SExpression for PCB new.
-                Token token = await lineSource.Read("EESchema", TokenType.ExpressionOpen);
+                Token token = await LineSource.Read("EESchema", TokenType.ExpressionOpen);
                 if (token.Type == TokenType.ExpressionOpen)
                 {
-                    token = await lineSource.Read("kicad_pcb");
+                    token = await LineSource.Read("kicad_pcb");
                 }
 
                 using (SvgWriter = new SvgWriter(SchematicRenderSettings, () => CreateOutputWriter(CancellationToken)))
@@ -92,25 +95,25 @@ namespace KiCadDoxer.Renderer
                             case "EESchema":
                                 if (setUrl)
                                 {
-                                    lineSource.Url = "KiCad Schematic File";
+                                    LineSource.Url = "KiCad Schematic File";
                                 }
-                                await SchematicRoot.Render(this, lineSource);
+                                await SchematicRoot.Render(this);
                                 break;
 
                             case "kicad_pcb":
                                 if (setUrl)
                                 {
-                                    lineSource.Url = "KiCad PCB File";
+                                    LineSource.Url = "KiCad PCB File";
                                 }
                                 throw new KiCadFileFormatException(token, "Sorry, PCB files are not yet supported.");
                         }
 
-                        if (lineSource.Mode == TokenizerMode.SExpresionKiCad)
+                        if (LineSource.Mode == TokenizerMode.SExpresionKiCad)
                         {
-                            await lineSource.Read(TokenType.ExpressionClose);
+                            await LineSource.Read(TokenType.ExpressionClose);
                         }
 
-                        await lineSource.Read(TokenType.EndOfFile);
+                        await LineSource.Read(TokenType.EndOfFile);
                     }
                     catch (Exception ex)
                     {
