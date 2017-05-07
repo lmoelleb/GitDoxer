@@ -26,6 +26,7 @@ namespace KiCadDoxer.Renderer.Tests.Schematic
         [Theory]
         [InlineData("", "Wire")]
         [InlineData("", "Bus")]
+        [InlineData("", "Notes")]
         [InlineData("FAIL", "Bus")]
         [InlineData("Wire", "Line")]
         [InlineData("Wire FAIL", "Line")]
@@ -41,7 +42,7 @@ namespace KiCadDoxer.Renderer.Tests.Schematic
         public async Task IncompleteLineOrWrongTokensThrows(string line, string expectedInException)
         {
             var testCase = new SchematicTestRenderContext(line, false);
-            var ex = await Assert.ThrowsAsync<KiCadFileFormatException>(async () => await Wire.Render(testCase));
+            var ex = await Assert.ThrowsAsync<KiCadFileFormatException>(async () => await Line.Render(testCase));
             Assert.Contains(expectedInException, ex.Message);
         }
 
@@ -53,6 +54,22 @@ namespace KiCadDoxer.Renderer.Tests.Schematic
             var svgLine = testCase.Result.Root.Elements().Single();
             Assert.Equal(svgLine.Name.LocalName, "line");
             Assert.Equal("rgb(0,132,0)", (string)svgLine.Attribute("stroke"));
+            Assert.Equal("1", (string)svgLine.Attribute("x1"));
+            Assert.Equal("2", (string)svgLine.Attribute("y1"));
+            Assert.Equal("3", (string)svgLine.Attribute("x2"));
+            Assert.Equal("4", (string)svgLine.Attribute("y2"));
+            Assert.Null(svgLine.Attribute("stroke-width")); // Should use default
+        }
+
+        [Fact]
+        public async Task NotesAreBlueThinAndDashed()
+        {
+            var testCase = new SchematicTestRenderContext("Wire Notes Line\r\n1 2 3 4\r\n", true);
+            await testCase.Render();
+            var svgLine = testCase.Result.Root.Elements().Single();
+            Assert.Equal(svgLine.Name.LocalName, "line");
+            Assert.Equal("rgb(0,0,132)", (string)svgLine.Attribute("stroke"));
+            Assert.Equal("136.85,158.425", (string)svgLine.Attribute("stroke-dasharray"));
             Assert.Equal("1", (string)svgLine.Attribute("x1"));
             Assert.Equal("2", (string)svgLine.Attribute("y1"));
             Assert.Equal("3", (string)svgLine.Attribute("x2"));

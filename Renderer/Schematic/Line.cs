@@ -2,22 +2,22 @@
 
 namespace KiCadDoxer.Renderer.Schematic
 {
-    internal class Wire : RenderItem
+    internal class Line : RenderItem
     {
-        private Wire(RenderContext renderContext) : base(renderContext)
+        private Line(RenderContext renderContext) : base(renderContext)
         {
         }
 
-        public static async Task<Wire> Render(RenderContext context)
+        public static async Task<Line> Render(RenderContext context)
         {
-            var wire = new Wire(context);
+            var wire = new Line(context);
             await wire.Render();
             return wire;
         }
 
         public async Task Render()
         {
-            var type = await LineSource.Read("Wire", "Bus");
+            var type = await LineSource.Read("Wire", "Bus", "Notes");
             await LineSource.Read("Line");
             await LineSource.Read(TokenType.LineBreak);
             var x1 = await LineSource.Read(typeof(int));
@@ -39,6 +39,11 @@ namespace KiCadDoxer.Renderer.Schematic
             {
                 await Writer.WriteInheritedAttributeStringAsync("stroke", "rgb(0,0,132)");
                 await Writer.WriteInheritedAttributeStringAsync("stroke-width", Settings.DefaultStrokeWidth * 2);
+            }
+            else if (type == "Notes")
+            {
+                await Writer.WriteInheritedAttributeStringAsync("stroke", "rgb(0,0,132)");
+                await Writer.WriteInheritedAttributeStringAsync("stroke-dasharray", "136.85,158.425"); // Constants lifted from example SVG export from KiCad
             }
             else
             {

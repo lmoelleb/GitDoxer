@@ -58,7 +58,7 @@ namespace KiCadDoxer.Renderer.Schematic
                         break;
 
                     case "Wire":
-                        await Wire.Render(RenderContext);
+                        await Line.Render(RenderContext);
                         break;
                 }
             }
