@@ -83,9 +83,15 @@ namespace KiCadDoxer.Renderer
               return result.AsReadOnly();
           });
 
+        // Used by the old render engine
+        public static Task DrawText(string text, double x, double y, double glyphSize, string stroke, double strokeWidth, bool isBold, bool isItalic, double angle, TextHorizontalJustify horizontalJustify, TextVerticalJustify verticalJustify, string classNames)
+        {
+            return DrawText(RenderContext.Current, text, x, y, glyphSize, stroke, strokeWidth, isBold, isItalic, angle, horizontalJustify, verticalJustify, classNames);
+        }
+
         // Yes, it is bloody awful with all these parameters. Introduce a class wich can maintain
         // state like used in KiCad... or bloody ignore it and keep hacking!:)
-        public static async Task DrawText(string text, double x, double y, double glyphSize, string stroke, double strokeWidth, bool isBold, bool isItalic, double angle, TextHorizontalJustify horizontalJustify, TextVerticalJustify verticalJustify, string classNames)
+        public static async Task DrawText(RenderContext renderContext, string text, double x, double y, double glyphSize, string stroke, double strokeWidth, bool isBold, bool isItalic, double angle, TextHorizontalJustify horizontalJustify, TextVerticalJustify verticalJustify, string classNames)
         {
             // I have no idea if glyphHeight is the same as size, will try! If not, I can just apply
             // a constant factor
@@ -162,7 +168,7 @@ namespace KiCadDoxer.Renderer
                 offsetY = Math.Round(offsetY);
             }
 
-            var svgWriter = RenderContext.Current.SvgWriter;
+            var svgWriter = renderContext.SvgWriter;
 
             await svgWriter.WriteStartElementAsync("g");
             List<string> transforms = new List<string>();
@@ -190,7 +196,7 @@ namespace KiCadDoxer.Renderer
             y -= (lines.Length - 1) * lineHeight;
             foreach (var line in lines)
             {
-                await DrawSingleLineText(line, x, Math.Round(y), glyphSize, strokeWidth);
+                await DrawSingleLineText(renderContext, line, x, Math.Round(y), glyphSize, strokeWidth);
                 y += lineHeight;
             }
 
@@ -233,11 +239,11 @@ namespace KiCadDoxer.Renderer
             }
         }
 
-        private static async Task DrawSingleLineText(string text, double x, double y, double glyphSize, double lineWidth)
+        private static async Task DrawSingleLineText(RenderContext renderContext, string text, double x, double y, double glyphSize, double lineWidth)
         {
             var fontData = await fontDataLoader.Value;
 
-            var svgWriter = RenderContext.Current.SvgWriter;
+            var svgWriter = renderContext.SvgWriter;
 
             await svgWriter.WriteCommentAsync(text);
             double? overbarStartPosition = null;
