@@ -36,7 +36,7 @@ namespace KiCadDoxer.Renderer.Schematic
 
             await Writer.WriteStartElementAsync("line");
 
-            await Writer.WriteInheritedAttributeStringAsync("class", type.ToLowerInvariant());
+            await Writer.WriteNonInheritedAttributeStringAsync("class", type.ToLowerInvariant());
 
             await Writer.WriteNonInheritedAttributeStringAsync("x1", X1);
             await Writer.WriteNonInheritedAttributeStringAsync("y1", Y1);
@@ -52,9 +52,11 @@ namespace KiCadDoxer.Renderer.Schematic
             {
                 await Writer.WriteInheritedAttributeStringAsync("stroke", "rgb(0,0,132)");
                 await Writer.WriteInheritedAttributeStringAsync("stroke-dasharray", "13.685,15.8425"); // Constants lifted from example SVG export from KiCad
+                await Writer.WriteInheritedAttributeStringAsync("stroke-width", Settings.DefaultStrokeWidth);
             }
             else
             {
+                await Writer.WriteInheritedAttributeStringAsync("stroke-width", Settings.DefaultStrokeWidth);
                 await Writer.WriteInheritedAttributeStringAsync("stroke", "rgb(0,132,0)");
             }
 
