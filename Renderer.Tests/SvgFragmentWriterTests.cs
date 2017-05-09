@@ -87,7 +87,7 @@ namespace KiCadDoxer.Renderer.Tests
             await w.Assert("T:text");
         }
 
-        private class SvgFragmentWriterTestWriter : SvgFragmentWriter
+        private class SvgFragmentWriterTestWriter : SvgWriter
         {
             // This class only exists to get to the protected member WriteTo
             public async Task Assert(string expected)
@@ -97,7 +97,7 @@ namespace KiCadDoxer.Renderer.Tests
                 Xunit.Assert.Equal(expected, receiver.ToString());
             }
 
-            private class SvgFragmentWriterTestReceiver : SvgFragmentWriter
+            private class SvgFragmentWriterTestReceiver : SvgWriter
             {
                 private List<string> result = new List<string>();
 

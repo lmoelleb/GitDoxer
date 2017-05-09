@@ -12,9 +12,9 @@ namespace KiCadDoxer.Renderer
     {
         private static AsyncLocal<RenderContext> current = new AsyncLocal<RenderContext>();
         private Task<LineSource> cacheLibraryLineSourceTask;
-        private Dictionary<string, SvgFragmentWriter> namedWriters = new Dictionary<string, SvgFragmentWriter>();
+        private Dictionary<string, SvgWriter> namedWriters = new Dictionary<string, SvgWriter>();
         private Lazy<SchematicRenderSettings> schematicRenderSettings;
-        private Stack<SvgFragmentWriter> writerStack = new Stack<SvgFragmentWriter>();
+        private Stack<SvgWriter> writerStack = new Stack<SvgWriter>();
 
         public RenderContext()
         {
@@ -49,7 +49,7 @@ namespace KiCadDoxer.Renderer
 
         internal SchematicRenderSettings SchematicRenderSettings => schematicRenderSettings.Value;
 
-        internal SvgFragmentWriter SvgWriter
+        internal SvgWriter SvgWriter
         {
             get
             {
@@ -99,7 +99,7 @@ namespace KiCadDoxer.Renderer
                     token = await LineSource.Read("kicad_pcb");
                 }
 
-                using (var writer = new SvgWriter(SchematicRenderSettings, () => CreateOutputWriter(CancellationToken)))
+                using (var writer = new SvgRootWriter(SchematicRenderSettings, () => CreateOutputWriter(CancellationToken)))
                 {
                     PushSvgWriter(writer);
                     try
@@ -140,7 +140,7 @@ namespace KiCadDoxer.Renderer
                                 writerStack.Pop();
                             }
 
-                            SvgWriter root = (SvgWriter)this.SvgWriter;
+                            SvgRootWriter root = (SvgRootWriter)this.SvgWriter;
 
                             bool canAttemptSvgWrite = root.IsRootElementWritten && !root.IsClosed;
                             handleExceptionResult = await HandleException(canAttemptSvgWrite, ex);
@@ -183,7 +183,7 @@ namespace KiCadDoxer.Renderer
         {
         }
 
-        internal async Task<SvgFragmentWriter> PopSvgWriter(bool writeToOutput)
+        internal async Task<SvgWriter> PopSvgWriter(bool writeToOutput)
         {
             if (writerStack.Count == 1)
             {
@@ -200,7 +200,7 @@ namespace KiCadDoxer.Renderer
             return result;
         }
 
-        internal void PushSvgWriter(SvgFragmentWriter writer)
+        internal void PushSvgWriter(SvgWriter writer)
         {
             if (writerStack.Contains(writer))
             {
@@ -212,15 +212,15 @@ namespace KiCadDoxer.Renderer
 
         internal void PushSvgWriter()
         {
-            PushSvgWriter(new SvgFragmentWriter());
+            PushSvgWriter(new SvgWriter());
         }
 
         internal void PushSvgWriter(string name)
         {
-            SvgFragmentWriter writer;
+            SvgWriter writer;
             if (!namedWriters.TryGetValue(name, out writer))
             {
-                writer = new SvgFragmentWriter();
+                writer = new SvgWriter();
                 namedWriters.Add(name, writer);
             }
 

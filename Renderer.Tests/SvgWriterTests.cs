@@ -17,7 +17,7 @@ namespace KiCadDoxer.Renderer.Tests
         public async Task ElementStartAndEndShouldBeBalancedWithProperErrorMessage()
         {
             StringWriter writer = new StringWriter();
-            using (SvgWriter svgWriter = new SvgWriter(new TestRenderSettings(), () => Task.FromResult((TextWriter)writer)))
+            using (SvgRootWriter svgWriter = new SvgRootWriter(new TestRenderSettings(), () => Task.FromResult((TextWriter)writer)))
             {
                 await svgWriter.WriteStartElementAsync("svg");
                 await svgWriter.WriteStartElementAsync("child1");
@@ -34,7 +34,7 @@ namespace KiCadDoxer.Renderer.Tests
             // Currently comments are ONLY written if the root element is completed. This is not
             // necessarely brilliant, but it works for standard cases so I'll let it slide for now
             StringWriter writer = new StringWriter();
-            using (SvgWriter svgWriter = new SvgWriter(new TestRenderSettings(), () => Task.FromResult((TextWriter)writer)))
+            using (SvgRootWriter svgWriter = new SvgRootWriter(new TestRenderSettings(), () => Task.FromResult((TextWriter)writer)))
             {
                 await svgWriter.WriteStartElementAsync("svg");
                 await svgWriter.WriteInheritedAttributeStringAsync("attribute_", "val");
@@ -56,7 +56,7 @@ namespace KiCadDoxer.Renderer.Tests
             // Currently comments are ONLY written if the root element is completed. This is not
             // necessarely brilliant, but it works for standard cases so I'll let it slide for now
             StringWriter writer = new StringWriter();
-            using (SvgWriter svgWriter = new SvgWriter(new TestRenderSettings(), () => Task.FromResult((TextWriter)writer)))
+            using (SvgRootWriter svgWriter = new SvgRootWriter(new TestRenderSettings(), () => Task.FromResult((TextWriter)writer)))
             {
                 await svgWriter.WriteStartElementAsync("svg");
                 await svgWriter.WriteNonInheritedAttributeStringAsync("attribute_", "val");
@@ -76,7 +76,7 @@ namespace KiCadDoxer.Renderer.Tests
         public async Task RootMustBeNamedSvg()
         {
             StringWriter writer = new StringWriter();
-            using (SvgWriter svgWriter = new SvgWriter(new TestRenderSettings(), () => Task.FromResult((TextWriter)writer)))
+            using (SvgRootWriter svgWriter = new SvgRootWriter(new TestRenderSettings(), () => Task.FromResult((TextWriter)writer)))
             {
                 await svgWriter.WriteStartElementAsync("not_svg");
                 await Assert.ThrowsAsync<InternalRenderException>(() => svgWriter.WriteEndElementAsync("not_svg"));
@@ -89,7 +89,7 @@ namespace KiCadDoxer.Renderer.Tests
             // Currently comments are ONLY written if the root element is completed. This is not
             // necessarely brilliant, but it works for standard cases so I'll let it slide for now
             StringWriter writer = new StringWriter();
-            using (SvgWriter svgWriter = new SvgWriter(new TestRenderSettings(), () => Task.FromResult((TextWriter)writer)))
+            using (SvgRootWriter svgWriter = new SvgRootWriter(new TestRenderSettings(), () => Task.FromResult((TextWriter)writer)))
             {
                 await svgWriter.WriteStartElementAsync("svg");
                 await svgWriter.WriteCommentAsync("comment");
@@ -105,7 +105,7 @@ namespace KiCadDoxer.Renderer.Tests
         public async Task WriteRootElement()
         {
             StringWriter writer = new StringWriter();
-            using (SvgWriter svgWriter = new SvgWriter(new TestRenderSettings(), () => Task.FromResult((TextWriter)writer)))
+            using (SvgRootWriter svgWriter = new SvgRootWriter(new TestRenderSettings(), () => Task.FromResult((TextWriter)writer)))
             {
                 await svgWriter.WriteStartElementAsync("svg");
                 await svgWriter.WriteEndElementAsync("svg");
@@ -122,7 +122,7 @@ namespace KiCadDoxer.Renderer.Tests
         public async Task WriteText()
         {
             StringWriter writer = new StringWriter();
-            using (SvgWriter svgWriter = new SvgWriter(new TestRenderSettings(), () => Task.FromResult((TextWriter)writer)))
+            using (SvgRootWriter svgWriter = new SvgRootWriter(new TestRenderSettings(), () => Task.FromResult((TextWriter)writer)))
             {
                 await svgWriter.WriteStartElementAsync("svg");
                 await svgWriter.WriteTextAsync("text");

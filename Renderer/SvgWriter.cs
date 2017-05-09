@@ -1,240 +1,186 @@
-﻿using KiCadDoxer.Renderer.Exceptions;
-using KiCadDoxer.Renderer.Extensions;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Threading.Tasks;
-using System.Xml;
 
 namespace KiCadDoxer.Renderer
 {
-    internal class SvgWriter : SvgFragmentWriter, IDisposable
+    internal class SvgWriter
     {
-        private const string SvgNs = "http://www.w3.org/2000/svg";
-        private Stack<ElementStackEntry> elementStack = new Stack<ElementStackEntry>();
-        private Stack<SvgFragmentWriter> fragmentWriterStack = new Stack<SvgFragmentWriter>();
-        private bool isClosed;
-        private bool isRootElementStartCompleted = false;
-        private bool isRootElementStartWritten = false;
-        private RenderSettings renderSettings;
-        private Lazy<Task<XmlWriter>> xmlWriterCreator;
+        private List<WriteOperation> writeOperations = new List<WriteOperation>();
 
-        internal SvgWriter(RenderSettings renderSettings, Func<Task<TextWriter>> textWriterFactory)
+        // Considered optimizations:
+        // 1) Object pooling of the write commands
+        // 2) Spool write operations to disks once the list gets big - I expect complex PCB's to take
+        //    megabytes, and due to single modules containing content accross multiple layers the
+        //    entire PCB file has to be processed before the first layer can be written to the output.
+
+        public virtual Task WriteCommentAsync(string comment)
         {
-            this.renderSettings = renderSettings;
-            XmlWriterSettings xmlWriterSettings = new XmlWriterSettings
-            {
-                Async = true,
-                Indent = renderSettings.PrettyPrint
-            };
-
-            this.xmlWriterCreator = new Lazy<Task<XmlWriter>>(async () => XmlWriter.Create(await textWriterFactory(), xmlWriterSettings));
+            writeOperations.Add(new CommentWriteOperation(comment));
+            return Task.CompletedTask;
         }
 
-        public bool IsClosed => isClosed;
-
-        public bool IsRootElementWritten => isRootElementStartWritten;
-
-        public async Task CloseAsync()
+        public virtual Task WriteEndElementAsync(string name)
         {
-            if (isClosed)
-            {
-                return;
-            }
-
-            isClosed = true;
-
-            if (xmlWriterCreator.IsValueCreated)
-            {
-                if (isRootElementStartWritten)
-                {
-                    await WriteEndElementAsync("svg");
-                }
-            }
+            writeOperations.Add(new EndElementWriteOperation(name));
+            return Task.CompletedTask;
         }
 
-        public void Dispose()
+        public Task WriteInheritedAttributeStringAsync(string name, int value)
         {
-            if (xmlWriterCreator.IsValueCreated)
-            {
-                //Hmm, is this always safe? Come on microsoft, we need async disposable now!!
-                xmlWriterCreator.Value.Result.Dispose();
-            }
+            return WriteInheritedAttributeStringAsync(name, value.ToString(CultureInfo.InvariantCulture));
         }
 
-        public async Task FlushAsync()
+        public Task WriteInheritedAttributeStringAsync(string name, double value)
         {
-            if (xmlWriterCreator.IsValueCreated)
-            {
-                var xmlWriter = await xmlWriterCreator.Value;
-                await xmlWriter.FlushAsync();
-            }
+            return WriteInheritedAttributeStringAsync(name, value.ToString(CultureInfo.InvariantCulture));
         }
 
-        public override async Task WriteCommentAsync(string comment)
+        [Obsolete("This does not check the type, so use a type specific version instead")]
+        public Task WriteInheritedAttributeStringAsync(string name, Token token)
         {
-            if (!isRootElementStartCompleted)
-            {
-                await base.WriteCommentAsync(comment);
-                return;
-            }
-
-            var xmlWriter = await xmlWriterCreator.Value;
-            await xmlWriter.WriteCommentAsync(comment);
+            return WriteInheritedAttributeStringAsync(name, (string)token);
         }
 
-        public override async Task WriteEndElementAsync(string name)
+        public virtual Task WriteInheritedAttributeStringAsync(string name, string value)
         {
-            if (!isRootElementStartCompleted)
+            writeOperations.Add(new InheritedAttributeWriteOperation(name, value));
+            return Task.CompletedTask;
+        }
+
+        public virtual Task WriteNonInheritedAttributeStringAsync(string name, string value)
+        {
+            writeOperations.Add(new NonInheritedAttributeWriteOperation(name, value));
+            return Task.CompletedTask;
+        }
+
+        public Task WriteNonInheritedAttributeStringAsync(string name, int value)
+        {
+            return WriteNonInheritedAttributeStringAsync(name, value.ToString(CultureInfo.InvariantCulture));
+        }
+
+        public virtual Task WriteStartElementAsync(string name)
+        {
+            writeOperations.Add(new StartElementWriteOperation(name));
+            return Task.CompletedTask;
+        }
+
+        public virtual Task WriteTextAsync(string text)
+        {
+            writeOperations.Add(new TextWriteOperation(text));
+            return Task.CompletedTask;
+        }
+
+        // TODO: Temporarily internal to keep the old SchmaticRenderer happy. Make protected once
+        //       SchemaricRenderer is removed.
+        protected internal async Task WriteTo(SvgWriter targetWriter)
+        {
+            foreach (var operation in writeOperations)
             {
-                isRootElementStartCompleted = true;
-                await WriteTo(this);
+                await operation.WriteToFragment(targetWriter);
             }
 
-            var xmlWriter = await xmlWriterCreator.Value;
-            await xmlWriter.WriteEndElementAsync();
-            var entry = elementStack.Pop();
-            if (entry.Name != name)
+            writeOperations.Clear();
+        }
+
+        private class CommentWriteOperation : WriteOperation
+        {
+            private string comment;
+
+            public CommentWriteOperation(string comment)
             {
-                throw new InternalRenderException($"Ending element {name} but should end {entry.Name}.");
+                this.comment = comment;
             }
 
-            if (entry.Name == "svg" && elementStack.Count != 0)
+            protected internal override Task WriteToFragment(SvgWriter fragment)
             {
-                throw new InternalRenderException($"The \"svg\" element must be the last element closed.");
-            }
-
-            if (entry.Name != "svg" && elementStack.Count == 0)
-            {
-                throw new InternalRenderException($"Root element being ended must have the name \"svg\".");
+                return fragment.WriteCommentAsync(comment);
             }
         }
 
-        public override async Task WriteInheritedAttributeStringAsync(string name, string value)
+        private class EndElementWriteOperation : WriteOperation
         {
-            if (!isRootElementStartCompleted)
+            private string elementName;
+
+            internal EndElementWriteOperation(string elementName)
             {
-                await base.WriteInheritedAttributeStringAsync(name, value);
-                return;
+                this.elementName = elementName;
             }
 
-            if (name == "stroke-width" && value == "0")
+            protected internal override Task WriteToFragment(SvgWriter fragment)
             {
-                // KiCad use 0 to specify default length... nice.... I do need a more generic way to
-                // deal with this though, so keeping "Current" for now, so the new unit tests will
-                // throw on it.
-                value = RenderContext.Current.SchematicRenderSettings.DefaultStrokeWidth.ToString(CultureInfo.InvariantCulture);
-            }
-
-            if (name == "class" && !renderSettings.AddClasses)
-            {
-                return;
-            }
-
-            if (elementStack.Peek().SetInheritedAttribute(name, value))
-            {
-                var xmlWriter = await xmlWriterCreator.Value;
-                await xmlWriter.WriteAttributeStringAsync(null, name, null, value);
+                return fragment.WriteEndElementAsync(elementName);
             }
         }
 
-        public override async Task WriteNonInheritedAttributeStringAsync(string name, string value)
+        private class InheritedAttributeWriteOperation : WriteOperation
         {
-            if (!isRootElementStartCompleted)
+            private string attributeName;
+            private string value;
+
+            internal InheritedAttributeWriteOperation(string attributeName, string value)
             {
-                await base.WriteInheritedAttributeStringAsync(name, value);
-                return;
+                this.attributeName = attributeName;
+                this.value = value;
             }
 
-            if (name == "class" && !renderSettings.AddClasses)
+            protected internal override Task WriteToFragment(SvgWriter fragment)
             {
-                return;
+                return fragment.WriteInheritedAttributeStringAsync(attributeName, value);
             }
-
-            // Someone can still choose to inherit eve if this element shouldn't, I do not really care.
-            elementStack.Peek().SetInheritedAttribute(name, value);
-            var xmlWriter = await xmlWriterCreator.Value;
-            await xmlWriter.WriteAttributeStringAsync(null, name, null, value);
         }
 
-        public override async Task WriteStartElementAsync(string name)
+        private class NonInheritedAttributeWriteOperation : WriteOperation
         {
-            if (!isRootElementStartWritten)
+            private string attributeName;
+            private string value;
+
+            internal NonInheritedAttributeWriteOperation(string attributeName, string value)
             {
-                isRootElementStartWritten = true;
-                await base.WriteStartElementAsync(name);
-                return;
-            }
-            else if (!isRootElementStartCompleted)
-            {
-                isRootElementStartCompleted = true;
-                await base.WriteTo(this);
+                this.attributeName = attributeName;
+                this.value = value;
             }
 
-            if (elementStack.Count == 0 && name != "svg")
+            protected internal override Task WriteToFragment(SvgWriter fragment)
             {
-                throw new InternalRenderException("The root element must have the name \"svg\".");
+                return fragment.WriteNonInheritedAttributeStringAsync(attributeName, value);
             }
-            var xmlWriter = await xmlWriterCreator.Value;
-            var parent = elementStack.PeekOrDefault();
-            await xmlWriter.WriteStartElementAsync(null, name, SvgNs);
-
-            elementStack.Push(new ElementStackEntry(parent, name));
         }
 
-        public override async Task WriteTextAsync(string text)
+        private class StartElementWriteOperation : WriteOperation
         {
-            if (!isRootElementStartCompleted)
+            private string elementName;
+
+            internal StartElementWriteOperation(string elementName)
             {
-                await base.WriteTextAsync(text);
-                return;
+                this.elementName = elementName;
             }
 
-            var xmlWriter = await xmlWriterCreator.Value;
-            await xmlWriter.WriteStringAsync(text);
+            protected internal override Task WriteToFragment(SvgWriter fragment)
+            {
+                return fragment.WriteStartElementAsync(elementName);
+            }
         }
 
-        public class ElementStackEntry
+        private class TextWriteOperation : WriteOperation
         {
-            private Dictionary<string, string> attributeValues;
-            private ElementStackEntry parent;
+            private string text;
 
-            public ElementStackEntry(ElementStackEntry parent, string name)
+            public TextWriteOperation(string text)
             {
-                this.Name = name;
-                this.parent = parent;
+                this.text = text;
             }
 
-            public string Name { get; }
-
-            public string GetInheritedAttribute(string name)
+            protected internal override Task WriteToFragment(SvgWriter fragment)
             {
-                string result = null;
-                if (attributeValues == null || !attributeValues.TryGetValue(name, out result))
-                {
-                    result = parent?.GetInheritedAttribute(name);
-                }
-
-                return result;
+                return fragment.WriteTextAsync(text);
             }
+        }
 
-            public bool SetInheritedAttribute(string name, string value)
-            {
-                if (GetInheritedAttribute(name) == value)
-                {
-                    return false;
-                }
-
-                if (attributeValues == null)
-                {
-                    attributeValues = new Dictionary<string, string>();
-                }
-
-                attributeValues[name] = value;
-
-                return true;
-            }
+        private abstract class WriteOperation
+        {
+            protected internal abstract Task WriteToFragment(SvgWriter fragment);
         }
     }
 }

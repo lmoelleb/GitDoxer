@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace KiCadDoxer.Renderer.Tests
 {
-    internal class TestFragmentWriter : SvgFragmentWriter
+    internal class TestFragmentWriter : SvgWriter
     {
         private List<(string name, string value, bool isInherited)> currentAttributes;
 

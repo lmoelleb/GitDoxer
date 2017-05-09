@@ -30,7 +30,7 @@ namespace KiCadDoxer.Renderer
         private HashSet<(int, int)> noConnectPositions = new HashSet<(int, int)>();
         private HashSet<(int, int)> wirePositions = new HashSet<(int, int)>();
 
-        private SvgFragmentWriter SvgWriter => RenderContext.SvgWriter;
+        private SvgWriter SvgWriter => RenderContext.SvgWriter;
 
         private RenderContext RenderContext => RenderContext.Current;
 
@@ -49,7 +49,7 @@ namespace KiCadDoxer.Renderer
                     lineSource.Url = "KiCad Schematic (.SCH)"; // Not ideal, but better than not even knowing if it is in a library or what.
                 }
 
-                using (var writer = new SvgWriter(renderContext.SchematicRenderSettings, () => renderContext.CreateOutputWriter(renderContext.CancellationToken)))
+                using (var writer = new SvgRootWriter(renderContext.SchematicRenderSettings, () => renderContext.CreateOutputWriter(renderContext.CancellationToken)))
                 {
                     renderContext.PushSvgWriter(writer);
                     try
@@ -253,8 +253,8 @@ namespace KiCadDoxer.Renderer
                         HandleExceptionResult handleExceptionResult = HandleExceptionResult.Throw;
                         try
                         {
-                            SvgWriter root = null;
-                            while ((root = renderContext.SvgWriter as SvgWriter) == null)
+                            SvgRootWriter root = null;
+                            while ((root = renderContext.SvgWriter as SvgRootWriter) == null)
                             {
                                 await renderContext.PopSvgWriter(false);
                             }
