@@ -15,7 +15,7 @@ namespace KiCadDoxer.Renderer.Tests.Schematic
             testCase.PushSvgWriter(testWriter);
 
             await (Connection.Render(testCase));
-            Assert.True(testWriter.ContainsElement("circle", ("cx", "100", false), ("cy", "200", false), ("r", "25", false), ("fill", "rgb(0,132,0)", true), ("stroke", "none", true), ("class", "connection", false)));
+            Assert.True(testWriter.ContainsElement("circle", ("cx", "100", false), ("cy", "200", false), ("r", "20", false), ("fill", "rgb(0,132,0)", true), ("stroke", "none", true), ("class", "connection", false)));
         }
 
         [Theory]

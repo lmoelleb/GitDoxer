@@ -28,7 +28,7 @@ namespace KiCadDoxer.Renderer.Schematic
             await Writer.WriteStartElementAsync("circle");
             await Writer.WriteNonInheritedAttributeStringAsync("cx", X);
             await Writer.WriteNonInheritedAttributeStringAsync("cy", Y);
-            await Writer.WriteNonInheritedAttributeStringAsync("r", 25);
+            await Writer.WriteNonInheritedAttributeStringAsync("r", 20);
             await Writer.WriteInheritedAttributeStringAsync("stroke", "none");
             await Writer.WriteInheritedAttributeStringAsync("fill", "rgb(0,132,0)");
             await Writer.WriteNonInheritedAttributeStringAsync("class", "connection");
