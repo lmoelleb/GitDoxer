@@ -25,7 +25,8 @@ namespace KiCadDoxer.Server
         public Task Invoke(HttpContext context)
         {
             var renderContext = new HttpRenderContext(context);
-            return new SchematicRenderer().HandleSchematic(renderContext);
+            return renderContext.Render(); 
+            //return new SchematicRenderer().HandleSchematic(renderContext);
         }
     }
 }

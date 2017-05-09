@@ -126,7 +126,7 @@ namespace KiCadDoxer.Renderer
                         {
                             await LineSource.Read(TokenType.ExpressionClose);
                         }
-
+                        await LineSource.SkipEmptyLines();
                         await LineSource.Read(TokenType.EndOfFile);
                     }
                     catch (Exception ex)
