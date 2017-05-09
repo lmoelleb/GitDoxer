@@ -13,6 +13,6 @@
 
         protected SchematicRenderSettings Settings => RenderContext.SchematicRenderSettings;
 
-        protected SvgWriter Writer => RenderContext.SvgWriter;
+        protected SvgFragmentWriter Writer => RenderContext.SvgWriter;
     }
 }

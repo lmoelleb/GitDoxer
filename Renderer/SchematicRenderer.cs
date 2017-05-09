@@ -30,7 +30,7 @@ namespace KiCadDoxer.Renderer
         private HashSet<(int, int)> noConnectPositions = new HashSet<(int, int)>();
         private HashSet<(int, int)> wirePositions = new HashSet<(int, int)>();
 
-        private SvgWriter SvgWriter => RenderContext.SvgWriter;
+        private SvgFragmentWriter SvgWriter => RenderContext.SvgWriter;
 
         private RenderContext RenderContext => RenderContext.Current;
 
@@ -49,8 +49,9 @@ namespace KiCadDoxer.Renderer
                     lineSource.Url = "KiCad Schematic (.SCH)"; // Not ideal, but better than not even knowing if it is in a library or what.
                 }
 
-                using (renderContext.SvgWriter = new SvgWriter(renderContext.SchematicRenderSettings, () => renderContext.CreateOutputWriter(renderContext.CancellationToken) ))
+                using (var writer = new SvgWriter(renderContext.SchematicRenderSettings, () => renderContext.CreateOutputWriter(renderContext.CancellationToken)))
                 {
+                    renderContext.PushSvgWriter(writer);
                     try
                     {
                         await SvgWriter.WriteStartElementAsync("svg");
@@ -246,25 +247,30 @@ namespace KiCadDoxer.Renderer
                         }
 
                         await SvgWriter.WriteEndElementAsync("svg");
-                        await SvgWriter.FlushAsync();
                     }
                     catch (Exception ex)
                     {
                         HandleExceptionResult handleExceptionResult = HandleExceptionResult.Throw;
                         try
                         {
-                            bool canAttemptSvgWrite = SvgWriter.IsRootElementWritten && !SvgWriter.IsClosed;
+                            SvgWriter root = null;
+                            while ((root = renderContext.SvgWriter as SvgWriter) == null)
+                            {
+                                await renderContext.PopSvgWriter(false);
+                            }
+
+                            bool canAttemptSvgWrite = root.IsRootElementWritten && !root.IsClosed;
                             handleExceptionResult = await RenderContext.HandleException(canAttemptSvgWrite, ex);
                             if (handleExceptionResult.HasFlag(HandleExceptionResult.WriteToSvg) && canAttemptSvgWrite)
                             {
-                                await SvgWriter.WriteStartElementAsync("text");
-                                await SvgWriter.WriteInheritedAttributeStringAsync("x", "0");
-                                await SvgWriter.WriteInheritedAttributeStringAsync("y", "100");
-                                await SvgWriter.WriteInheritedAttributeStringAsync("stroke", "rgb(255,0,0");
-                                await SvgWriter.WriteInheritedAttributeStringAsync("fill", "rgb(255,0,0");
-                                await SvgWriter.WriteInheritedAttributeStringAsync("font-size", "100");
-                                await SvgWriter.WriteTextAsync(ex.Message);
-                                await SvgWriter.WriteEndElementAsync("text");
+                                await root.WriteStartElementAsync("text");
+                                await root.WriteInheritedAttributeStringAsync("x", "0");
+                                await root.WriteInheritedAttributeStringAsync("y", "100");
+                                await root.WriteInheritedAttributeStringAsync("stroke", "rgb(255,0,0");
+                                await root.WriteInheritedAttributeStringAsync("fill", "rgb(255,0,0");
+                                await root.WriteInheritedAttributeStringAsync("font-size", "100");
+                                await root.WriteTextAsync(ex.Message);
+                                await root.WriteEndElementAsync("text");
                             }
                         }
                         catch

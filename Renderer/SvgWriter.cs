@@ -147,7 +147,7 @@ namespace KiCadDoxer.Renderer
                 return;
             }
 
-            if (name == "class" && !RenderContext.Current.SchematicRenderSettings.AddClasses)
+            if (name == "class" && !renderSettings.AddClasses)
             {
                 return;
             }

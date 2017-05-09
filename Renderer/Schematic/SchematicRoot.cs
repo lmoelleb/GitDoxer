@@ -60,6 +60,10 @@ namespace KiCadDoxer.Renderer.Schematic
                     case "Wire":
                         await Line.Render(RenderContext);
                         break;
+
+                    case "NoConn":
+                        await NoConnect.Render(RenderContext);
+                        break;
                 }
             }
 

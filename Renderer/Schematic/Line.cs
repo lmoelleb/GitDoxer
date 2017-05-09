@@ -8,6 +8,14 @@ namespace KiCadDoxer.Renderer.Schematic
         {
         }
 
+        public int X1 { get; private set; }
+
+        public int X2 { get; private set; }
+
+        public int Y1 { get; private set; }
+
+        public int Y2 { get; private set; }
+
         public static async Task<Line> Render(RenderContext context)
         {
             var wire = new Line(context);
@@ -20,20 +28,20 @@ namespace KiCadDoxer.Renderer.Schematic
             var type = await LineSource.Read("Wire", "Bus", "Notes");
             await LineSource.Read("Line");
             await LineSource.Read(TokenType.LineBreak);
-            var x1 = await LineSource.Read(typeof(int));
-            var y1 = await LineSource.Read(typeof(int));
-            var x2 = await LineSource.Read(typeof(int));
-            var y2 = await LineSource.Read(typeof(int));
+            X1 = await LineSource.Read(typeof(int));
+            Y1 = await LineSource.Read(typeof(int));
+            X2 = await LineSource.Read(typeof(int));
+            Y2 = await LineSource.Read(typeof(int));
             await LineSource.Read(TokenType.LineBreak);
 
             await Writer.WriteStartElementAsync("line");
 
             await Writer.WriteInheritedAttributeStringAsync("class", type.ToLowerInvariant());
 
-            await Writer.WriteNonInheritedAttributeStringAsync("x1", x1);
-            await Writer.WriteNonInheritedAttributeStringAsync("y1", y1);
-            await Writer.WriteNonInheritedAttributeStringAsync("x2", x2);
-            await Writer.WriteNonInheritedAttributeStringAsync("y2", y2);
+            await Writer.WriteNonInheritedAttributeStringAsync("x1", X1);
+            await Writer.WriteNonInheritedAttributeStringAsync("y1", Y1);
+            await Writer.WriteNonInheritedAttributeStringAsync("x2", X2);
+            await Writer.WriteNonInheritedAttributeStringAsync("y2", Y2);
 
             if (type == "Bus")
             {

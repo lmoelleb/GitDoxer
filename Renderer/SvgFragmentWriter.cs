@@ -55,6 +55,11 @@ namespace KiCadDoxer.Renderer
             return Task.CompletedTask;
         }
 
+        public Task WriteNonInheritedAttributeStringAsync(string name, int value)
+        {
+            return WriteNonInheritedAttributeStringAsync(name, value.ToString(CultureInfo.InvariantCulture));
+        }
+
         public virtual Task WriteStartElementAsync(string name)
         {
             writeOperations.Add(new StartElementWriteOperation(name));
@@ -67,7 +72,9 @@ namespace KiCadDoxer.Renderer
             return Task.CompletedTask;
         }
 
-        protected async Task WriteTo(SvgFragmentWriter targetWriter)
+        // TODO: Temporarily internal to keep the old SchmaticRenderer happy. Make protected once
+        //       SchemaricRenderer is removed.
+        protected internal async Task WriteTo(SvgFragmentWriter targetWriter)
         {
             foreach (var operation in writeOperations)
             {

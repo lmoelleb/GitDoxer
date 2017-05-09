@@ -1,6 +1,7 @@
 ﻿using KiCadDoxer.Renderer.Exceptions;
 using KiCadDoxer.Renderer.Schematic;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,7 +12,9 @@ namespace KiCadDoxer.Renderer
     {
         private static AsyncLocal<RenderContext> current = new AsyncLocal<RenderContext>();
         private Task<LineSource> cacheLibraryLineSourceTask;
+        private Dictionary<string, SvgFragmentWriter> namedWriters = new Dictionary<string, SvgFragmentWriter>();
         private Lazy<SchematicRenderSettings> schematicRenderSettings;
+        private Stack<SvgFragmentWriter> writerStack = new Stack<SvgFragmentWriter>();
 
         public RenderContext()
         {
@@ -46,7 +49,17 @@ namespace KiCadDoxer.Renderer
 
         internal SchematicRenderSettings SchematicRenderSettings => schematicRenderSettings.Value;
 
-        internal SvgWriter SvgWriter { get; set; }
+        internal SvgFragmentWriter SvgWriter
+        {
+            get
+            {
+                if (writerStack.Count == 0)
+                {
+                    throw new InvalidOperationException("The SvgWriter will not be accesible before calling Render");
+                }
+                return writerStack.Peek();
+            }
+        }
 
         public abstract Task<LineSource> CreateLibraryLineSource(string libraryName, CancellationToken cancellationToken);
 
@@ -86,8 +99,9 @@ namespace KiCadDoxer.Renderer
                     token = await LineSource.Read("kicad_pcb");
                 }
 
-                using (SvgWriter = new SvgWriter(SchematicRenderSettings, () => CreateOutputWriter(CancellationToken)))
+                using (var writer = new SvgWriter(SchematicRenderSettings, () => CreateOutputWriter(CancellationToken)))
                 {
+                    PushSvgWriter(writer);
                     try
                     {
                         switch ((string)token)
@@ -120,7 +134,15 @@ namespace KiCadDoxer.Renderer
                         HandleExceptionResult handleExceptionResult = HandleExceptionResult.Throw;
                         try
                         {
-                            bool canAttemptSvgWrite = SvgWriter.IsRootElementWritten && !SvgWriter.IsClosed;
+                            while (writerStack.Count > 1)
+                            {
+                                // Just throw it all away, things have gone terrible wrong :(
+                                writerStack.Pop();
+                            }
+
+                            SvgWriter root = (SvgWriter)this.SvgWriter;
+
+                            bool canAttemptSvgWrite = root.IsRootElementWritten && !root.IsClosed;
                             handleExceptionResult = await HandleException(canAttemptSvgWrite, ex);
                             if (handleExceptionResult.HasFlag(HandleExceptionResult.WriteToSvg) && canAttemptSvgWrite)
                             {
@@ -159,6 +181,50 @@ namespace KiCadDoxer.Renderer
 
         public virtual void SetResponseEtagHeaderValue(string etag)
         {
+        }
+
+        internal async Task<SvgFragmentWriter> PopSvgWriter(bool writeToOutput)
+        {
+            if (writerStack.Count == 1)
+            {
+                throw new InvalidOperationException("Unable to remove the root SVG writer from the stack.");
+            }
+
+            var result = writerStack.Pop();
+
+            if (writeToOutput)
+            {
+                await result.WriteTo(writerStack.Peek());
+            }
+
+            return result;
+        }
+
+        internal void PushSvgWriter(SvgFragmentWriter writer)
+        {
+            if (writerStack.Contains(writer))
+            {
+                throw new InvalidOperationException("The writer is already on the stack");
+            }
+
+            writerStack.Push(writer);
+        }
+
+        internal void PushSvgWriter()
+        {
+            PushSvgWriter(new SvgFragmentWriter());
+        }
+
+        internal void PushSvgWriter(string name)
+        {
+            SvgFragmentWriter writer;
+            if (!namedWriters.TryGetValue(name, out writer))
+            {
+                writer = new SvgFragmentWriter();
+                namedWriters.Add(name, writer);
+            }
+
+            PushSvgWriter(writer);
         }
 
         protected abstract SchematicRenderSettings CreateSchematicRenderSettings();
