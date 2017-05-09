@@ -2,9 +2,9 @@
 
 namespace KiCadDoxer.Renderer.Schematic
 {
-    internal class NoConnect : RenderItem
+    internal class NoConnection : RenderItem
     {
-        public NoConnect(RenderContext renderContext) : base(renderContext)
+        public NoConnection(RenderContext renderContext) : base(renderContext)
         {
         }
 
@@ -12,9 +12,9 @@ namespace KiCadDoxer.Renderer.Schematic
 
         public int Y { get; private set; }
 
-        public static async Task<NoConnect> Render(RenderContext context)
+        public static async Task<NoConnection> Render(RenderContext context)
         {
-            var noConnect = new NoConnect(context);
+            var noConnect = new NoConnection(context);
             await noConnect.Render();
             return noConnect;
         }

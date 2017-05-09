@@ -62,7 +62,11 @@ namespace KiCadDoxer.Renderer.Schematic
                         break;
 
                     case "NoConn":
-                        await NoConnect.Render(RenderContext);
+                        await NoConnection.Render(RenderContext);
+                        break;
+
+                    case "Connection":
+                        await Connection.Render(RenderContext);
                         break;
                 }
             }

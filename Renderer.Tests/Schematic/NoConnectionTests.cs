@@ -5,7 +5,7 @@ using Xunit;
 
 namespace KiCadDoxer.Renderer.Tests.Schematic
 {
-    public class NoConnectTests
+    public class NoConnectionTests
     {
         [Fact]
         public async Task AllLinesArePresent()
@@ -14,7 +14,7 @@ namespace KiCadDoxer.Renderer.Tests.Schematic
             var testWriter = new TestFragmentWriter();
             testCase.PushSvgWriter(testWriter);
 
-            await (NoConnect.Render(testCase));
+            await (NoConnection.Render(testCase));
 
             // Slash
             Assert.True(testWriter.ContainsLine(76, 176, 124, 224));
@@ -33,7 +33,7 @@ namespace KiCadDoxer.Renderer.Tests.Schematic
             var testWriter = new TestFragmentWriter();
             testCase.PushSvgWriter(testWriter);
 
-            await (NoConnect.Render(testCase));
+            await (NoConnection.Render(testCase));
             Assert.True(testWriter.ContainsElement("g", ("stroke", "rgb(0,0,132)", true), ("stroke-width", "6", true), ("class", "no-connection", false)));
         }
 
@@ -47,7 +47,7 @@ namespace KiCadDoxer.Renderer.Tests.Schematic
         public async Task IncompleteLineOrWrongTokensThrows(string line, string expectedInException)
         {
             var testCase = new SchematicTestRenderContext(line, false);
-            var ex = await Assert.ThrowsAsync<KiCadFileFormatException>(async () => await NoConnect.Render(testCase));
+            var ex = await Assert.ThrowsAsync<KiCadFileFormatException>(async () => await NoConnection.Render(testCase));
             Assert.Contains(expectedInException, ex.Message);
         }
     }
