@@ -47,10 +47,10 @@ namespace KiCadDoxer.Renderer.Tests
             return base.WriteStartElementAsync(name);
         }
 
-        public override Task WriteTextAsync(string text)
+        public override Task WriteTextNodeAsync(string text)
         {
             PushCurrentElement();
-            return base.WriteTextAsync(text);
+            return base.WriteTextNodeAsync(text);
         }
 
         internal bool ContainsElement(string name, params (string AttributeName, string AttributeValue, bool IsInheritedAttribute)[] attributes)

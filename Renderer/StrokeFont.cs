@@ -56,10 +56,10 @@ namespace KiCadDoxer.Renderer
                                   string val = m.Groups[1].Value;
                                   if (val.Contains("\\"))
                                   {
-                                      // This is an EXTREMELY naive to decoding - it CAN'T be done
-                                      // using search replace supporting all cases - but the only
-                                      // character we have encoded is \, so in this narrow case it
-                                      // will work.
+                                      // This is an EXTREMELY naive approach to decoding - it CAN'T
+                                      // be done using search replace supporting all cases - but the
+                                      // only character we have encoded is \, so in this narrow case
+                                      // it will work.
                                       val = val.Replace(@"\\", @"\");
                                   }
 
@@ -83,62 +83,87 @@ namespace KiCadDoxer.Renderer
               return result.AsReadOnly();
           });
 
-        // Used by the old render engine
+        // TODO: Used by the old render engine so remove it when it is no longer referenced.
+        [Obsolete]
         public static Task DrawText(string text, double x, double y, double glyphSize, string stroke, double strokeWidth, bool isBold, bool isItalic, double angle, TextHorizontalJustify horizontalJustify, TextVerticalJustify verticalJustify, string classNames)
         {
             return DrawText(RenderContext.Current, text, x, y, glyphSize, stroke, strokeWidth, isBold, isItalic, angle, horizontalJustify, verticalJustify, classNames);
         }
 
-        // Yes, it is bloody awful with all these parameters. Introduce a class wich can maintain
-        // state like used in KiCad... or bloody ignore it and keep hacking!:)
-        public static async Task DrawText(RenderContext renderContext, string text, double x, double y, double glyphSize, string stroke, double strokeWidth, bool isBold, bool isItalic, double angle, TextHorizontalJustify horizontalJustify, TextVerticalJustify verticalJustify, string classNames)
+        // TODO: Used by the old render engine so remove it when it is no longer referenced.
+        [Obsolete]
+        public static Task DrawText(RenderContext renderContext, string text, double x, double y, double glyphSize, string stroke, double strokeWidth, bool isBold, bool isItalic, double angle, TextHorizontalJustify horizontalJustify, TextVerticalJustify verticalJustify, string classNames)
         {
+            TextSettings settings = new TextSettings();
+            settings.AutoRotateUpsideDownText = true;
+            settings.ClassNames = classNames;
+            settings.HorizontalJustify = horizontalJustify;
+            settings.IsBold = isBold;
+            settings.IsItalic = isItalic;
+            settings.Size = glyphSize;
+            settings.Stroke = stroke;
+            settings.StrokeWidth = strokeWidth;
+            settings.VerticalJustify = verticalJustify;
+            return DrawText(renderContext.SvgWriter, renderContext.SchematicRenderSettings, x, y, angle, text, settings);
+        }
+
+        public static async Task DrawText(SvgWriter writer, RenderSettings renderSettings, double x, double y, double angle, string text, TextSettings textSettings)
+        {
+            // TODO: Do not reference SchematicRenderSettings, find another way to initialize stroke width
+
+            var horizontalJustify = textSettings.HorizontalJustify;
+            var verticalJustify = textSettings.VerticalJustify;
+
             // I have no idea if glyphHeight is the same as size, will try! If not, I can just apply
             // a constant factor
-            double lineHeight = glyphSize * InterlinePitchRatio + strokeWidth;
+            double lineHeight = textSettings.Size * InterlinePitchRatio + textSettings.StrokeWidth;
 
             string[] lines = SplitTextInLines(text).ToArray();
 
             double offsetX = 0;
             double offsetY = 0;
 
-            // The schematic editor always draws text upwards or rightwards, never downwards or
-            // leftwards even when rotated 180 degrees. So turn the text around here if attempting to
-            // draw outside these "headings" First normalize the angle from 0-360. Yes, this can
-            // probably be done with modula, but then I have to deal with negative - this is easy :)
-            while (angle < 0)
+            if (textSettings.AutoRotateUpsideDownText)
             {
-                angle += 360;
-            }
+                // The schematic editor always draws text upwards or rightwards, never downwards or
+                // leftwards even when rotated 180 degrees. So turn the text around here if
+                // attempting to draw outside these "headings" First normalize the angle from 0-360.
+                // Yes, this can probably be done with modula, but then I have to deal with negative
+                // - this is easy :)
+                while (angle < 0)
+                {
+                    angle += 360;
+                }
 
-            while (angle >= 360)
-            {
-                angle -= 360;
-            }
-            if (angle > 45 && angle < 225)
-            {
-                angle += 180;
-                if (angle > 360)
+                while (angle >= 360)
                 {
                     angle -= 360;
                 }
+                if (angle > 45 && angle < 225)
+                {
+                    angle += 180;
+                    if (angle > 360)
+                    {
+                        angle -= 360;
+                    }
 
-                if (horizontalJustify == TextHorizontalJustify.Left)
-                {
-                    horizontalJustify = TextHorizontalJustify.Right;
-                }
-                else if (horizontalJustify == TextHorizontalJustify.Right)
-                {
-                    horizontalJustify = TextHorizontalJustify.Left;
-                }
+                    if (horizontalJustify == TextHorizontalJustify.Left)
+                    {
+                        horizontalJustify = TextHorizontalJustify.Right;
+                    }
+                    else if (horizontalJustify == TextHorizontalJustify.Right)
+                    {
+                        horizontalJustify = TextHorizontalJustify.Left;
+                    }
 
-                if (verticalJustify == TextVerticalJustify.Bottom)
-                {
-                    verticalJustify = TextVerticalJustify.Top;
-                }
-                else if (verticalJustify == TextVerticalJustify.Top)
-                {
-                    verticalJustify = TextVerticalJustify.Bottom;
+                    if (verticalJustify == TextVerticalJustify.Bottom)
+                    {
+                        verticalJustify = TextVerticalJustify.Top;
+                    }
+                    else if (verticalJustify == TextVerticalJustify.Top)
+                    {
+                        verticalJustify = TextVerticalJustify.Bottom;
+                    }
                 }
             }
 
@@ -146,7 +171,7 @@ namespace KiCadDoxer.Renderer
             {
                 foreach (var line in lines)
                 {
-                    offsetX = Math.Min(offsetX, -await GetSingleLineTextWidth(line, glyphSize));
+                    offsetX = Math.Min(offsetX, -await GetSingleLineTextWidth(line, textSettings.Size));
                 }
 
                 if (horizontalJustify == TextHorizontalJustify.Center)
@@ -159,7 +184,7 @@ namespace KiCadDoxer.Renderer
 
             if (verticalJustify != TextVerticalJustify.Bottom)
             {
-                offsetY = lineHeight * lines.Length - (lineHeight - (glyphSize + strokeWidth));
+                offsetY = lineHeight * lines.Length - (lineHeight - (textSettings.Size + textSettings.StrokeWidth));
                 if (verticalJustify == TextVerticalJustify.Center)
                 {
                     offsetY /= 2;
@@ -168,9 +193,7 @@ namespace KiCadDoxer.Renderer
                 offsetY = Math.Round(offsetY);
             }
 
-            var svgWriter = renderContext.SvgWriter;
-
-            await svgWriter.WriteStartElementAsync("g");
+            await writer.WriteStartElementAsync("g");
             List<string> transforms = new List<string>();
 
             if (angle != 0)
@@ -185,22 +208,22 @@ namespace KiCadDoxer.Renderer
 
             if (transforms.Any())
             {
-                await svgWriter.WriteInheritedAttributeStringAsync("transform", string.Join(" ", transforms));
+                await writer.WriteInheritedAttributeStringAsync("transform", string.Join(" ", transforms));
             }
 
-            classNames = (classNames + " glyphs").Trim();
-            await svgWriter.WriteInheritedAttributeStringAsync("class", classNames);
-            await svgWriter.WriteInheritedAttributeStringAsync("stroke", stroke);
-            await svgWriter.WriteInheritedAttributeStringAsync("stroke-width", strokeWidth);
+            string classNames = (textSettings.ClassNames + " glyphs").Trim();
+            await writer.WriteInheritedAttributeStringAsync("class", classNames);
+            await writer.WriteInheritedAttributeStringAsync("stroke", textSettings.Stroke);
+            await writer.WriteInheritedAttributeStringAsync("stroke-width", textSettings.StrokeWidth);
 
             y -= (lines.Length - 1) * lineHeight;
             foreach (var line in lines)
             {
-                await DrawSingleLineText(renderContext, line, x, Math.Round(y), glyphSize, strokeWidth);
+                await DrawSingleLineText(writer, line, x, Math.Round(y), textSettings.Size, textSettings.StrokeWidth);
                 y += lineHeight;
             }
 
-            await svgWriter.WriteEndElementAsync("g");
+            await writer.WriteEndElementAsync("g");
         }
 
         public static Task EnsureFontIsLoaded()
@@ -239,13 +262,11 @@ namespace KiCadDoxer.Renderer
             }
         }
 
-        private static async Task DrawSingleLineText(RenderContext renderContext, string text, double x, double y, double glyphSize, double lineWidth)
+        private static async Task DrawSingleLineText(SvgWriter writer, string text, double x, double y, double glyphSize, double lineWidth)
         {
             var fontData = await fontDataLoader.Value;
 
-            var svgWriter = renderContext.SvgWriter;
-
-            await svgWriter.WriteCommentAsync(text);
+            await writer.WriteCommentAsync(text);
             double? overbarStartPosition = null;
             double? overbarEndPosition = null;
 
@@ -258,13 +279,13 @@ namespace KiCadDoxer.Renderer
                     return;
                 }
 
-                await svgWriter.WriteStartElementAsync("line");
-                await svgWriter.WriteInheritedAttributeStringAsync("class", "overbar");
-                await svgWriter.WriteInheritedAttributeStringAsync("x1", ((int)overbarStartPosition).ToString(CultureInfo.InvariantCulture));
-                await svgWriter.WriteInheritedAttributeStringAsync("y1", overbarY.ToString(CultureInfo.InvariantCulture));
-                await svgWriter.WriteInheritedAttributeStringAsync("x2", ((int)overbarEndPosition).ToString(CultureInfo.InvariantCulture));
-                await svgWriter.WriteInheritedAttributeStringAsync("y2", overbarY.ToString(CultureInfo.InvariantCulture));
-                await svgWriter.WriteEndElementAsync("line");
+                await writer.WriteStartElementAsync("line");
+                await writer.WriteInheritedAttributeStringAsync("class", "overbar");
+                await writer.WriteInheritedAttributeStringAsync("x1", ((int)overbarStartPosition).ToString(CultureInfo.InvariantCulture));
+                await writer.WriteInheritedAttributeStringAsync("y1", overbarY.ToString(CultureInfo.InvariantCulture));
+                await writer.WriteInheritedAttributeStringAsync("x2", ((int)overbarEndPosition).ToString(CultureInfo.InvariantCulture));
+                await writer.WriteInheritedAttributeStringAsync("y2", overbarY.ToString(CultureInfo.InvariantCulture));
+                await writer.WriteEndElementAsync("line");
             };
 
             foreach (var characterAndFormatting in DecodeString(text))
@@ -286,9 +307,9 @@ namespace KiCadDoxer.Renderer
 
                 foreach (var polyLinePoints in GetPolylinePoints(c, x, y, glyphSize))
                 {
-                    await svgWriter.WriteStartElementAsync("polyline");
-                    await svgWriter.WriteInheritedAttributeStringAsync("points", polyLinePoints);
-                    await svgWriter.WriteEndElementAsync("polyline");
+                    await writer.WriteStartElementAsync("polyline");
+                    await writer.WriteInheritedAttributeStringAsync("points", polyLinePoints);
+                    await writer.WriteEndElementAsync("polyline");
                 }
                 x += glyphSizeInfo.Width * glyphSize;
 

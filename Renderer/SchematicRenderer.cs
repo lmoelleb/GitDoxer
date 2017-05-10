@@ -269,7 +269,7 @@ namespace KiCadDoxer.Renderer
                                 await root.WriteInheritedAttributeStringAsync("stroke", "rgb(255,0,0");
                                 await root.WriteInheritedAttributeStringAsync("fill", "rgb(255,0,0");
                                 await root.WriteInheritedAttributeStringAsync("font-size", "100");
-                                await root.WriteTextAsync(ex.Message);
+                                await root.WriteTextNodeAsync(ex.Message);
                                 await root.WriteEndElementAsync("text");
                             }
                         }

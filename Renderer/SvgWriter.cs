@@ -66,9 +66,22 @@ namespace KiCadDoxer.Renderer
             return Task.CompletedTask;
         }
 
-        public virtual Task WriteTextAsync(string text)
+        public virtual Task WriteTextAsync(double x, double y, double angle, string text, TextSettings settings)
         {
-            writeOperations.Add(new TextWriteOperation(text));
+            writeOperations.Add(new TextWriteOperation(x, y, angle, text, settings));
+            return Task.CompletedTask;
+        }
+
+        // Do not convert text to actual SVG before the very last moment (so when it is written to
+        // the root writer). This is done for two reasons:
+        // 1) It is easier to unit test. The conversion to SVG can be tested at one layer only, then
+        //    each text output can be tested on a "higher level" where the text, it's position and
+        //    style are tested, not the actual lines drawn.
+        // 2) If the writer is holding data in memory awaiting a flush to the Root writer then it
+        //    takes a lot less memory than all the rendered polylines makng up the text.
+        public virtual Task WriteTextNodeAsync(string text)
+        {
+            writeOperations.Add(new TextNodeWriteOperation(text));
             return Task.CompletedTask;
         }
 
@@ -163,18 +176,42 @@ namespace KiCadDoxer.Renderer
             }
         }
 
-        private class TextWriteOperation : WriteOperation
+        private class TextNodeWriteOperation : WriteOperation
         {
             private string text;
 
-            public TextWriteOperation(string text)
+            public TextNodeWriteOperation(string text)
             {
                 this.text = text;
             }
 
             protected internal override Task WriteToFragment(SvgWriter fragment)
             {
-                return fragment.WriteTextAsync(text);
+                return fragment.WriteTextNodeAsync(text);
+            }
+        }
+
+        private class TextWriteOperation : WriteOperation
+        {
+            private double angle;
+            private TextSettings settings;
+            private string text;
+            private double x;
+            private double y;
+
+            public TextWriteOperation(double x, double y, double angle, string text, TextSettings settings)
+            {
+                this.x = x;
+                this.y = y;
+                this.angle = angle;
+                this.text = text;
+                this.settings = settings;
+                settings.IsWrittenToOutputAndLocked = true;
+            }
+
+            protected internal override Task WriteToFragment(SvgWriter fragment)
+            {
+                return fragment.WriteTextAsync(x, y, angle, text, settings);
             }
         }
 

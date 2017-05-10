@@ -183,11 +183,16 @@ namespace KiCadDoxer.Renderer
             elementStack.Push(new ElementStackEntry(parent, name));
         }
 
-        public override async Task WriteTextAsync(string text)
+        public override Task WriteTextAsync(double x, double y, double angle, string text, TextSettings settings)
+        {
+            return StrokeFont.DrawText(this, renderSettings, x, y, angle, text, settings);
+        }
+
+        public override async Task WriteTextNodeAsync(string text)
         {
             if (!isRootElementStartCompleted)
             {
-                await base.WriteTextAsync(text);
+                await base.WriteTextNodeAsync(text);
                 return;
             }
 

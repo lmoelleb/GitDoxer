@@ -125,7 +125,7 @@ namespace KiCadDoxer.Renderer.Tests
             using (SvgRootWriter svgWriter = new SvgRootWriter(new TestRenderSettings(), () => Task.FromResult((TextWriter)writer)))
             {
                 await svgWriter.WriteStartElementAsync("svg");
-                await svgWriter.WriteTextAsync("text");
+                await svgWriter.WriteTextNodeAsync("text");
                 await svgWriter.WriteEndElementAsync("svg");
             }
 

@@ -83,7 +83,7 @@ namespace KiCadDoxer.Renderer.Tests
         public async Task WriteText()
         {
             SvgFragmentWriterTestWriter w = new SvgFragmentWriterTestWriter();
-            await w.WriteTextAsync("text");
+            await w.WriteTextNodeAsync("text");
             await w.Assert("T:text");
         }
 
@@ -136,7 +136,7 @@ namespace KiCadDoxer.Renderer.Tests
                     return Task.CompletedTask;
                 }
 
-                public override Task WriteTextAsync(string text)
+                public override Task WriteTextNodeAsync(string text)
                 {
                     result.Add("T:" + text);
                     return Task.CompletedTask;

@@ -152,7 +152,7 @@ namespace KiCadDoxer.Renderer
                                 await SvgWriter.WriteInheritedAttributeStringAsync("stroke", "rgb(255,0,0");
                                 await SvgWriter.WriteInheritedAttributeStringAsync("fill", "rgb(255,0,0");
                                 await SvgWriter.WriteInheritedAttributeStringAsync("font-size", "100");
-                                await SvgWriter.WriteTextAsync(ex.Message);
+                                await SvgWriter.WriteTextNodeAsync(ex.Message);
                                 await SvgWriter.WriteEndElementAsync("text");
                             }
                         }
