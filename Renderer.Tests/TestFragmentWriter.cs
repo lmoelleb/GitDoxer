@@ -7,13 +7,15 @@ namespace KiCadDoxer.Renderer.Tests
 {
     internal class TestFragmentWriter : SvgWriter
     {
-        private List<(string name, string value, bool isInherited)> currentAttributes;
+        private List<(string Name, string Value, bool IsInherited)> currentAttributes;
 
         private string currentElementName;
 
         // For now just maintain an ordered list of elements ignoring nesting, comments etc. Might
         // need to improve that :)
         private List<(string ElementName, IList<(string AttributeName, string AttributeValue, bool IsInherited)> Attributes)> elements = new List<(string, IList<(string, string, bool)>)>();
+
+        private List<(double X, double Y, double Angle, string Text, TextSettings TextSettings)> texts = new List<(double, double, double, string, TextSettings)>();
 
         public override Task WriteCommentAsync(string comment)
         {
@@ -45,6 +47,13 @@ namespace KiCadDoxer.Renderer.Tests
             currentElementName = name;
             currentAttributes = new List<(string, string, bool)>();
             return base.WriteStartElementAsync(name);
+        }
+
+        public override Task WriteTextAsync(double x, double y, double angle, string text, TextSettings textSettings)
+        {
+            PushCurrentElement();
+            texts.Add((x, y, angle, text, textSettings));
+            return base.WriteTextAsync(x, y, angle, text, textSettings);
         }
 
         public override Task WriteTextNodeAsync(string text)
@@ -84,6 +93,11 @@ namespace KiCadDoxer.Renderer.Tests
         internal bool ContainsSingleElement(string name, params (string AttributeName, string AttributeValue, bool IsInheritedAttribute)[] attributes)
         {
             return CountElements(name, attributes) == 1;
+        }
+
+        internal bool ContainsText(string text)
+        {
+            return texts.Any(t => t.Text == text);
         }
 
         internal int CountElements(string elementName, params (string AttributeName, string AttributeValue, bool IsInheritedAttribute)[] attributes)
@@ -129,6 +143,18 @@ namespace KiCadDoxer.Renderer.Tests
         internal int CountElementsIgnoringAttributes(string elementName)
         {
             return elements.Count(e => e.ElementName == elementName);
+        }
+
+        internal (double X, double Y, double Angle) GetTextLocation(string text)
+        {
+            var entry = texts.Single(t => t.Text == text);
+
+            return (entry.X, entry.Y, entry.Angle);
+        }
+
+        internal TextSettings GetTextSettings(string text)
+        {
+            return texts.Single(t => t.Text == text).TextSettings;
         }
 
         private void PushCurrentElement()

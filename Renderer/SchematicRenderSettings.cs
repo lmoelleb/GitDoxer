@@ -1,12 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace KiCadDoxer.Renderer
+﻿namespace KiCadDoxer.Renderer
 {
     public class SchematicRenderSettings : RenderSettings
     {
-        public virtual double DefaultStrokeWidth => 6;
+        public virtual int DefaultStrokeWidth => 6;
 
         public virtual HiddenPinRenderMode HiddenPinRenderMode => HiddenPinRenderMode.Hide;
 

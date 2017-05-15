@@ -1,8 +1,11 @@
 ﻿using KiCadDoxer.Renderer.Exceptions;
+using KiCadDoxer.Renderer.Extensions;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 
 namespace KiCadDoxer.Renderer
@@ -11,21 +14,17 @@ namespace KiCadDoxer.Renderer
     {
         internal static string[] validBooleanFalse = { "N", "0" };
         internal static string[] validBooleanTrue = { "Y", "1" };
+        private static ConcurrentDictionary<Type, IDictionary<string, object>> attributeConvertionLookup = new ConcurrentDictionary<Type, IDictionary<string, object>>();
         private Lazy<string> unescapedToken;
 
-        internal Token(string preceedingWhiteSpace, string escapedTokenValue, TokenType type, LineSource lineSource, int lineNumber, int columnNumber) : this(preceedingWhiteSpace, escapedTokenValue, lineSource, lineNumber, columnNumber)
+        internal Token(string preceedingWhiteSpace, string escapedTokenValue, TokenType type, LineSource lineSource, int lineNumber, int columnNumber)
         {
-            Type = type;
-        }
-
-        internal Token(string preceedingWhiteSpace, string escapedTokenValue, LineSource lineSource, int lineNumber, int columnNumber)
-        {
+            this.Type = type;
             this.EscapedTokenValue = escapedTokenValue ?? string.Empty;
             this.unescapedToken = new Lazy<string>(() => Unescape());
             this.LineSource = lineSource;
             this.ColumnNumber = columnNumber;
             this.LineNumber = lineNumber;
-            this.Type = TokenType.Atom;
             this.PreceedingWhiteSpace = preceedingWhiteSpace;
         }
 
@@ -105,6 +104,8 @@ namespace KiCadDoxer.Renderer
             return Type.GetHashCode() * 31 + unescapedToken.GetHashCode();
         }
 
+        public bool IsValidEnumValue(Type enumType, string stringValue) => GetEnumValueLookup(enumType).ContainsKey(stringValue);
+
         public bool ToBoolean()
         {
             if (validBooleanTrue.Contains(unescapedToken.Value))
@@ -141,16 +142,7 @@ namespace KiCadDoxer.Renderer
             return result;
         }
 
-        public T ToEnum<T>() where T : struct
-        {
-            T result;
-            if (!Enum.TryParse(unescapedToken.Value, true, out result))
-            {
-                throw new KiCadFileFormatException(this, $"Expected one of the values {string.Join(", ", Enum.GetNames(typeof(T)))}. Got \"{ToString()}\".");
-            }
-
-            return result;
-        }
+        public T ToEnum<T>() => (T)GetEnumValueLookup(typeof(T))[EscapedTokenValue];
 
         public T ToEnumOrDefault<T>(T defaultValue) where T : struct
         {
@@ -182,6 +174,25 @@ namespace KiCadDoxer.Renderer
         public override string ToString()
         {
             return EscapedTokenValue;
+        }
+
+        internal static IEnumerable<string> GetEnumStringValues(Type enumType) => GetEnumValueLookup(enumType).Keys;
+
+        private static IDictionary<string, object> GetEnumValueLookup(Type enumType)
+        {
+            if (!typeof(Enum).GetTypeInfo().IsAssignableFrom(enumType))
+            {
+                throw new ArgumentException("Can only be used with Enum types.");
+            }
+
+            IDictionary<string, object> result = attributeConvertionLookup.GetOrAdd(enumType, t =>
+                (from value in Enum.GetValues(enumType).AsEnumerable<object>()
+                 let memberInfo = enumType.GetMember(value.ToString(), BindingFlags.Public | BindingFlags.Static).Single()
+                 let att = memberInfo.GetCustomAttribute<EnumStringValueAttribute>(false)
+                 from stringValue in att != null ? att.Values : new[] { memberInfo.Name }
+                 select new { value, stringValue }).ToDictionary(e => e.stringValue, e => e.value));
+
+            return result;
         }
 
         private static string GetTextFromTokenType(TokenType type)
@@ -365,7 +376,7 @@ namespace KiCadDoxer.Renderer
                 return "";
             }
 
-            if (escapedTokenValue[0] != '\"')
+            if (escapedTokenValue[0] != '\"' && Type == TokenType.Atom)
             {
                 // Not a quoted string
                 return escapedTokenValue;
@@ -373,15 +384,24 @@ namespace KiCadDoxer.Renderer
 
             if (!escapedTokenValue.Contains('\\'))
             {
-                // Quoted string but no escaping, so simply skip the quotes
-                return escapedTokenValue.Substring(1, escapedTokenValue.Length - 2);
+                if (Type == TokenType.Atom)
+                {
+                    // Quoted string but no escaping, so simply skip the quotes
+                    return escapedTokenValue.Substring(1, escapedTokenValue.Length - 2);
+                }
+
+                return escapedTokenValue;
             }
 
             StringBuilder resultBuilder = new StringBuilder();
             StringBuilder escapeCode = new StringBuilder();
 
             bool inEscape = false;
-            for (int i = 1; i < escapedTokenValue.Length - 1; i++)
+
+            int start = Type == TokenType.Atom ? 1 : 0;
+            int end = Type == TokenType.Atom ? escapedTokenValue.Length - 1 : escapedTokenValue.Length;
+
+            for (int i = start; i < end; i++)
             {
                 // Skip the quotes at both ends - the lineSource tokenizer should make sure they are
                 // always present
@@ -391,13 +411,14 @@ namespace KiCadDoxer.Renderer
                 {
                     escapeCode.Append(c);
                     IEnumerable<char> characters;
+                    char next = i < escapedTokenValue.Length - 1 ? escapedTokenValue[i + 1] : '\"';
                     if (escapeCode.Length == 1)
                     {
-                        characters = DecodeSingleCharacterEscapeCode(c, escapedTokenValue[i + 1]);
+                        characters = DecodeSingleCharacterEscapeCode(c, next);
                     }
                     else
                     {
-                        characters = DecodeMultiCharacterEscapeCode(escapeCode, escapedTokenValue[i + 1]);
+                        characters = DecodeMultiCharacterEscapeCode(escapeCode, next);
                     }
 
                     foreach (var escaped in characters)

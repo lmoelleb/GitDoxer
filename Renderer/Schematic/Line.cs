@@ -18,9 +18,9 @@ namespace KiCadDoxer.Renderer.Schematic
 
         public static async Task<Line> Render(RenderContext context)
         {
-            var wire = new Line(context);
-            await wire.Render();
-            return wire;
+            var line = new Line(context);
+            await line.Render();
+            return line;
         }
 
         public async Task Render()

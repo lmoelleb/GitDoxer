@@ -6,6 +6,7 @@
         ExpressionOpen,
         ExpressionClose,
         LineBreak,
-        EndOfFile
+        EndOfFile,
+        LineOfText,
     }
 }

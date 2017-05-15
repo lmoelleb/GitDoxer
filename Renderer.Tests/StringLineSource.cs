@@ -15,6 +15,14 @@ namespace KiCadDoxer.Renderer.Tests
             this.Mode = mode;
         }
 
+        public static async Task<string> GetUnescapedLineString(string escapedString)
+        {
+            using (var source = new StringLineSource(TokenizerMode.SExpresionKiCad, escapedString))
+            {
+                return await source.Read(TokenType.LineOfText);
+            }
+        }
+
         public static async Task<string> GetUnescapedString(string escapedString)
         {
             using (var source = new StringLineSource(TokenizerMode.SExpresionKiCad, "\"" + escapedString + "\""))

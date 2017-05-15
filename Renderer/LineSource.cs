@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -74,6 +75,24 @@ namespace KiCadDoxer.Renderer
 
         internal async Task<Token> Peek(params TokenTypeOrContent[] typesOrTexts)
         {
+            bool isLineOfText = false;
+            if (typesOrTexts.Any(tt => tt.TokenType == TokenType.LineOfText))
+            {
+                if (typesOrTexts.Length > 1)
+                {
+                    throw new ArgumentException("TokenType.LineOfText can't be used with other types.", nameof(typesOrTexts));
+                }
+
+                if ((string)peekedToken != null && peekedToken.Type != TokenType.LineOfText)
+                {
+                    // Could support this "simply" by copying the already peeked text into the new
+                    // Token. But not now :)
+                    throw new InvalidOperationException("Unable to Peek TokenType.LineOfText once another TokenType has been peeked");
+                }
+
+                isLineOfText = true;
+            }
+
             if ((string)peekedToken != null)
             {
                 TokenTypeOrContent.EnsureMatching(peekedToken, typesOrTexts);
@@ -116,8 +135,17 @@ namespace KiCadDoxer.Renderer
                 }
 
                 bool isEoF = read < 0;
-                bool isNewLine = read == '\n' && !isWhiteSpace;
+                bool isNewLine = (read == '\n' && !isWhiteSpace) ||
+                                 (read == '\r' && isLineOfText);
+
                 bool isSExpressionToken = Mode == TokenizerMode.SExpresionKiCad && !inQuotedString && (read == '(' || read == ')');
+
+                // If reading the entire line, whiteSpace does not "count" - only break on isNewLine
+                // or isEof (isSExpressionToken will not happen... I hope).
+                if (isLineOfText)
+                {
+                    isWhiteSpace = false;
+                }
 
                 if (wasQuotedString && !(isEoF || isWhiteSpace || isNewLine || isSExpressionToken))
                 {
@@ -135,7 +163,7 @@ namespace KiCadDoxer.Renderer
                     peekedChar = read;
                     string escapedTokenValue = tokenStringBuilder.ToString();
 
-                    peekedToken = new Token(whiteSpaceStringBuilder.ToString(), escapedTokenValue, this, tokenLineNumber, tokenColumnNumber);
+                    peekedToken = new Token(whiteSpaceStringBuilder.ToString(), escapedTokenValue, isLineOfText ? TokenType.LineOfText : TokenType.Atom, this, tokenLineNumber, tokenColumnNumber);
                     TokenTypeOrContent.EnsureMatching(peekedToken, typesOrTexts);
                     return peekedToken;
                 }
@@ -193,7 +221,7 @@ namespace KiCadDoxer.Renderer
                 // Not a single character thing (well, could be, but we do not know right away), so
                 // build it up
 
-                if (!inQuotedString)
+                if (!inQuotedString && !isLineOfText)
                 {
                     if (c == '\"' && tokenStringBuilder.Length == 1)
                     {
@@ -205,7 +233,7 @@ namespace KiCadDoxer.Renderer
                 {
                     // We only care enough about escapes to determine if a " terminates the string,
                     // the rest of escape handling is in the Token
-                    if (!lastWasEscapeStart && c == '\"')
+                    if (!lastWasEscapeStart && c == '\"' && !isLineOfText)
                     {
                         inQuotedString = false;
                         wasQuotedString = true;
@@ -451,18 +479,23 @@ namespace KiCadDoxer.Renderer
         internal class TokenTypeOrContent
         {
             public static readonly IEnumerable<TokenTypeOrContent> EndOfLineTokenTypes = new TokenTypeOrContent[] { TokenType.LineBreak, TokenType.EndOfFile };
+            private bool isEnum;
             private Type tokenAtomType;
             private string tokenText;
-            private TokenType? tokenType;
+            private TokenType tokenType;
 
             private TokenTypeOrContent(Type tokenAtomType)
             {
                 this.tokenType = TokenType.Atom;
                 this.tokenAtomType = tokenAtomType;
+                this.isEnum = typeof(Enum).GetTypeInfo().IsAssignableFrom(tokenAtomType);
 
                 // While developing make sure exceptions are thrown earlier. I would wrap this in #if
                 // DEBUG, but CodeMaid can't handle that.
-                GetTypeDisplayString();
+                if (!this.isEnum)
+                {
+                    GetTypeDisplayString();
+                }
             }
 
             private TokenTypeOrContent(string tokenText)
@@ -470,6 +503,13 @@ namespace KiCadDoxer.Renderer
                 this.tokenType = TokenType.Atom;
                 this.tokenAtomType = typeof(string);
                 this.tokenText = tokenText;
+            }
+
+            private TokenTypeOrContent(int tokenValue)
+            {
+                this.tokenType = TokenType.Atom;
+                this.tokenAtomType = typeof(int);
+                this.tokenText = tokenValue.ToString(CultureInfo.InvariantCulture);
             }
 
             private TokenTypeOrContent(TokenType tokenType)
@@ -480,6 +520,8 @@ namespace KiCadDoxer.Renderer
                     tokenAtomType = typeof(string);
                 }
             }
+
+            public TokenType TokenType => tokenType;
 
             public static void EnsureMatching(Token token, TokenTypeOrContent tokenTypeOrText, IEnumerable<TokenTypeOrContent> typeOrTexts)
             {
@@ -548,6 +590,11 @@ namespace KiCadDoxer.Renderer
                 return new TokenTypeOrContent(text);
             }
 
+            public static implicit operator TokenTypeOrContent(int value)
+            {
+                return new TokenTypeOrContent(value);
+            }
+
             public static implicit operator TokenTypeOrContent(TokenType type)
             {
                 return new TokenTypeOrContent(type);
@@ -583,7 +630,7 @@ namespace KiCadDoxer.Renderer
 
             public bool IsMatch(Token token)
             {
-                if (tokenType.HasValue && token.Type != tokenType.Value)
+                if (token.Type != tokenType)
                 {
                     return false;
                 }
@@ -593,7 +640,11 @@ namespace KiCadDoxer.Renderer
                 }
                 else if (tokenAtomType != null)
                 {
-                    if (tokenAtomType == typeof(int))
+                    if (isEnum)
+                    {
+                        return token.IsValidEnumValue(tokenAtomType, token);
+                    }
+                    else if (tokenAtomType == typeof(int))
                     {
                         return int.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out int dummy);
                     }
@@ -630,6 +681,18 @@ namespace KiCadDoxer.Renderer
                 yield return this;
             }
 
+            private T GetEnumFromStringValue<T>()
+                where T : class
+            {
+                if (!typeof(Enum).GetTypeInfo().IsAssignableFrom(typeof(T)))
+                {
+                    throw new ArgumentException("Can only be used with Enum types.");
+                }
+
+                object kurt = null;
+                return (T)kurt;
+            }
+
             private string GetTypeDisplayString()
             {
                 if (tokenType == TokenType.Atom)
@@ -658,6 +721,11 @@ namespace KiCadDoxer.Renderer
 
             private IEnumerable<string> GetValueDisplayStrings()
             {
+                if (isEnum)
+                {
+                    return Token.GetEnumStringValues(tokenAtomType);
+                }
+
                 if (tokenAtomType == typeof(bool))
                 {
                     return Token.validBooleanFalse.Concat(Token.validBooleanTrue);

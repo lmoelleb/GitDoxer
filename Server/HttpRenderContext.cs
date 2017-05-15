@@ -2,9 +2,7 @@
 using KiCadDoxer.Renderer.Exceptions;
 using Microsoft.AspNetCore.Http;
 using System;
-using System.Globalization;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading;
@@ -59,6 +57,8 @@ namespace KiCadDoxer.Server
             // A default value that will hopefully be replaced by an etag value
             httpContext.Response.Headers["Cache-Control"] = "max-age=30";
         }
+
+        public override CancellationToken CancellationToken => httpContext.RequestAborted;
 
         public static bool CanHandleContext(HttpContext context)
         {
@@ -124,8 +124,8 @@ namespace KiCadDoxer.Server
             else
             {
                 // The response has not yet started. So it is an option to return an actual error
-                // code. Consider using some middleware that handles this nicely - maybe on of
-                // them there fancy error pages :)
+                // code. Consider using some middleware that handles this nicely - maybe on of them
+                // there fancy error pages :)
                 httpContext.Response.ContentType = "text/plain; charset=\"UTF-8\"";
                 httpContext.Response.StatusCode = 500;
                 if (ex is KiCadFileNotAvailableException)
@@ -137,10 +137,9 @@ namespace KiCadDoxer.Server
                     await httpContext.Response.WriteAsync(ex.Message);
                 }
 
-                // In case the writer has started up, it will have stuff it will flush to the
-                // reponse stream For now accept this (write a newline to space it out a bit).
-                // Later stop it - worst case put a buffer inbetween where we can turn off
-                // further writes.
+                // In case the writer has started up, it will have stuff it will flush to the reponse
+                // stream For now accept this (write a newline to space it out a bit). Later stop it
+                // - worst case put a buffer inbetween where we can turn off further writes.
                 await httpContext.Response.WriteAsync("\r\n\r\n");
 
                 return HandleExceptionResult.Ignore;
@@ -164,8 +163,5 @@ namespace KiCadDoxer.Server
         {
             return new HttpSchematicRenderSettings(httpContext);
         }
-
-        public override CancellationToken CancellationToken => httpContext.RequestAborted;
-
     }
 }

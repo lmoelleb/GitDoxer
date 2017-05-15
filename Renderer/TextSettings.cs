@@ -7,7 +7,6 @@ namespace KiCadDoxer.Renderer
         private bool autoRotateUpsideDownText;
         private string classNames;
         private TextHorizontalJustify horizontalJustify;
-        private bool isBold;
         private bool isItalic;
         private bool isWrittenToOutputAndLocked;
         private double size = 50;
@@ -35,7 +34,7 @@ namespace KiCadDoxer.Renderer
         {
             get
             {
-                return ClassNames;
+                return classNames;
             }
             set
             {
@@ -59,22 +58,6 @@ namespace KiCadDoxer.Renderer
                 {
                     AssertCanWrite();
                     this.horizontalJustify = value;
-                }
-            }
-        }
-
-        public bool IsBold
-        {
-            get
-            {
-                return isBold;
-            }
-            set
-            {
-                if (value != isBold)
-                {
-                    AssertCanWrite();
-                    this.isBold = value;
                 }
             }
         }
@@ -173,6 +156,43 @@ namespace KiCadDoxer.Renderer
                     this.verticalJustify = value;
                 }
             }
+        }
+
+        public override bool Equals(object obj)
+        {
+            var other = obj as TextSettings;
+            return other != null &&
+                this.autoRotateUpsideDownText == other.autoRotateUpsideDownText &&
+                this.classNames == other.classNames &&
+                this.horizontalJustify == other.horizontalJustify &&
+                this.isItalic == other.isItalic &&
+                this.size == other.size &&
+                this.stroke == other.stroke &&
+                this.strokeWidth == other.strokeWidth &&
+                this.verticalJustify == other.verticalJustify;
+        }
+
+        public override int GetHashCode()
+        {
+            // Not the fastest implementation around, but this is not expected to be used anywhere
+            // performance critical.
+            int hash = this.autoRotateUpsideDownText.GetHashCode();
+            hash *= 23;
+            hash += this.classNames.GetHashCode();
+            hash *= 23;
+            hash += this.horizontalJustify.GetHashCode();
+            hash *= 23;
+            hash += this.isItalic.GetHashCode();
+            hash *= 23;
+            hash += this.size.GetHashCode();
+            hash *= 23;
+            hash += this.stroke.GetHashCode();
+            hash *= 23;
+            hash += this.strokeWidth.GetHashCode();
+            hash *= 23;
+            hash += this.verticalJustify.GetHashCode();
+
+            return hash;
         }
 
         private void AssertCanWrite()

@@ -35,9 +35,7 @@ namespace KiCadDoxer.Server
 
         public override bool AddClasses { get; }
 
-        // TODO: Expose it, but need to deal with a double value that might need a BadRequest
-        //       response if it is wrong
-        public override double DefaultStrokeWidth => base.DefaultStrokeWidth;
+        public override int DefaultStrokeWidth => base.DefaultStrokeWidth;
 
         public override HiddenPinRenderMode HiddenPinRenderMode { get; }
 

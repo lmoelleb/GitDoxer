@@ -18,6 +18,12 @@ namespace KiCadDoxer.Renderer.Tests
         }
 
         [Fact]
+        public async Task UnescapeLineOfTextIncludesEnclosingQuotes()
+        {
+            Assert.Equal("\"test\"text\n\"", await StringLineSource.GetUnescapedLineString("\"test\"text\\n\""));
+        }
+
+        [Fact]
         public async Task UnescapeLongUnicodeFollowedByLetter()
         {
             // TODO: This should fail according to the C standard, so check with KiCad what it will

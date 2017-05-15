@@ -98,7 +98,6 @@ namespace KiCadDoxer.Renderer
             settings.AutoRotateUpsideDownText = true;
             settings.ClassNames = classNames;
             settings.HorizontalJustify = horizontalJustify;
-            settings.IsBold = isBold;
             settings.IsItalic = isItalic;
             settings.Size = glyphSize;
             settings.Stroke = stroke;
@@ -109,8 +108,6 @@ namespace KiCadDoxer.Renderer
 
         public static async Task DrawText(SvgWriter writer, RenderSettings renderSettings, double x, double y, double angle, string text, TextSettings textSettings)
         {
-            // TODO: Do not reference SchematicRenderSettings, find another way to initialize stroke width
-
             var horizontalJustify = textSettings.HorizontalJustify;
             var verticalJustify = textSettings.VerticalJustify;
 
@@ -118,7 +115,7 @@ namespace KiCadDoxer.Renderer
             // a constant factor
             double lineHeight = textSettings.Size * InterlinePitchRatio + textSettings.StrokeWidth;
 
-            string[] lines = SplitTextInLines(text).ToArray();
+            string[] lines = text.Split('\n').ToArray();
 
             double offsetX = 0;
             double offsetY = 0;
@@ -412,43 +409,6 @@ namespace KiCadDoxer.Renderer
             double glyphStartX = (glyphDef[0] - 'R') * StrokeFontScale;
             double glyphEndX = (glyphDef[1] - 'R') * StrokeFontScale;
             return (glyphStartX, (glyphEndX - glyphStartX));
-        }
-
-        private static IEnumerable<string> SplitTextInLines(string text)
-        {
-            if (!text.Contains("\\n"))
-            {
-                yield return text;
-                yield break;
-            }
-
-            // Must fight the urge to name anything with Builder in it "Bob"
-            StringBuilder builder = new StringBuilder();
-
-            bool lastWasBackslash = false;
-            foreach (char c in text)
-            {
-                if (c == '\\' && !lastWasBackslash)
-                {
-                    lastWasBackslash = true;
-                    continue;
-                }
-
-                if (c == 'n' && lastWasBackslash)
-                {
-                    yield return builder.ToString();
-                    builder.Clear();
-                }
-                else
-                {
-                    builder.Append(c);
-                }
-
-                lastWasBackslash = false;
-            }
-
-            // Yields empty lines as well to allow trailing newline to change layout!
-            yield return builder.ToString();
         }
     }
 }

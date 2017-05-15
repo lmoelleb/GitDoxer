@@ -1,5 +1,4 @@
-﻿using KiCadDoxer.Renderer;
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using System.Threading.Tasks;
 
@@ -25,7 +24,8 @@ namespace KiCadDoxer.Server
         public Task Invoke(HttpContext context)
         {
             var renderContext = new HttpRenderContext(context);
-            return renderContext.Render(); 
+            return renderContext.Render();
+
             //return new SchematicRenderer().HandleSchematic(renderContext);
         }
     }

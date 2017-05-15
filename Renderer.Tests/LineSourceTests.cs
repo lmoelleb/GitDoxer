@@ -7,6 +7,39 @@ namespace KiCadDoxer.Renderer.Tests
     public class LineSourceTests
     {
         [Fact]
+        public async Task AutoDetectEeSchemeFormat()
+        {
+            using (var source = new StringLineSource(TokenizerMode.Automatic, "EESchematic"))
+            {
+                Assert.Equal(TokenizerMode.Automatic, source.Mode);
+                Assert.Equal(TokenType.Atom, (await source.Read()).Type);
+                Assert.Equal(TokenizerMode.EeSchema, source.Mode);
+            }
+        }
+
+        [Fact]
+        public async Task AutoDetectEeSchemeFormatFromEmptyStartLine()
+        {
+            using (var source = new StringLineSource(TokenizerMode.Automatic, "\r\n(test)"))
+            {
+                Assert.Equal(TokenizerMode.Automatic, source.Mode);
+                Assert.Equal(TokenType.LineBreak, (await source.Read()).Type);
+                Assert.Equal(TokenizerMode.EeSchema, source.Mode);
+            }
+        }
+
+        [Fact]
+        public async Task AutoDetectSExpression()
+        {
+            using (var source = new StringLineSource(TokenizerMode.Automatic, " ("))
+            {
+                Assert.Equal(TokenizerMode.Automatic, source.Mode);
+                Assert.Equal(TokenType.ExpressionOpen, (await source.Read()).Type);
+                Assert.Equal(TokenizerMode.SExpresionKiCad, source.Mode);
+            }
+        }
+
+        [Fact]
         public async Task NewlineBackSlashRBackSlashNCombinations()
         {
             using (var source = new StringLineSource(TokenizerMode.EeSchema, "\r\r\n\n"))
@@ -51,39 +84,6 @@ namespace KiCadDoxer.Renderer.Tests
                 Assert.Equal(TokenType.ExpressionOpen, (await source.Read()).Type);
                 Assert.Equal("test", await source.Read());
                 Assert.Equal(TokenType.ExpressionClose, (await source.Read()).Type);
-            }
-        }
-
-        [Fact]
-        public async Task AutoDetectSExpression()
-        {
-            using (var source = new StringLineSource(TokenizerMode.Automatic, " ("))
-            {
-                Assert.Equal(TokenizerMode.Automatic, source.Mode);
-                Assert.Equal(TokenType.ExpressionOpen, (await source.Read()).Type);
-                Assert.Equal(TokenizerMode.SExpresionKiCad, source.Mode);
-            }
-        }
-
-        [Fact]
-        public async Task AutoDetectEeSchemeFormat()
-        {
-            using (var source = new StringLineSource(TokenizerMode.Automatic, "EESchematic"))
-            {
-                Assert.Equal(TokenizerMode.Automatic, source.Mode);
-                Assert.Equal(TokenType.Atom, (await source.Read()).Type);
-                Assert.Equal(TokenizerMode.EeSchema, source.Mode);
-            }
-        }
-
-        [Fact]
-        public async Task AutoDetectEeSchemeFormatFromEmptyStartLine()
-        {
-            using (var source = new StringLineSource(TokenizerMode.Automatic, "\r\n(test)"))
-            {
-                Assert.Equal(TokenizerMode.Automatic, source.Mode);
-                Assert.Equal(TokenType.LineBreak, (await source.Read()).Type);
-                Assert.Equal(TokenizerMode.EeSchema, source.Mode);
             }
         }
 

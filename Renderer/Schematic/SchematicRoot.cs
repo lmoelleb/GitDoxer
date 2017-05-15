@@ -57,16 +57,20 @@ namespace KiCadDoxer.Renderer.Schematic
                         // Could check nothing follows, but not sure KiCad cares... I don't :)
                         break;
 
-                    case "Wire":
-                        await Line.Render(RenderContext);
+                    case "Connection":
+                        await Connection.Render(RenderContext);
                         break;
 
                     case "NoConn":
                         await NoConnection.Render(RenderContext);
                         break;
 
-                    case "Connection":
-                        await Connection.Render(RenderContext);
+                    case "Text":
+                        await Text.Render(RenderContext);
+                        break;
+
+                    case "Wire":
+                        await Line.Render(RenderContext);
                         break;
                 }
             }

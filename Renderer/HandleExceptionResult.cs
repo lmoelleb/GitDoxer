@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace KiCadDoxer.Renderer
 {
@@ -10,6 +8,5 @@ namespace KiCadDoxer.Renderer
         Ignore = 0,
         Throw = 1,
         WriteToSvg = 2
-
     }
 }
