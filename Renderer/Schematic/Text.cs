@@ -23,8 +23,6 @@ namespace KiCadDoxer.Renderer.Schematic
 
         protected abstract string CssClass { get; }
 
-        protected virtual bool HasShape => true;
-
         protected virtual bool IsTextHorizontalAligmentInversed => false;
 
         protected abstract string Stroke { get; }
@@ -66,6 +64,8 @@ namespace KiCadDoxer.Renderer.Schematic
 
         protected virtual Task RenderShape() => Task.CompletedTask;
 
+        protected virtual Task RenderShape(double x, double y, double angle, Shape shape) => Task.CompletedTask;
+
         private async Task Render()
         {
             // Initialize the base class first before calling "Render" on the child items. This is
@@ -86,7 +86,7 @@ namespace KiCadDoxer.Renderer.Schematic
             TextSettings.Size = await LineSource.Read(typeof(int));
             Shape shape = Shape.Unspecified;
 
-            if (HasShape)
+            if (this is TextWithShape)
             {
                 shape = (await LineSource.Read(typeof(Shape))).ToEnum<Shape>();
             }
@@ -146,12 +146,18 @@ namespace KiCadDoxer.Renderer.Schematic
                 TextSettings.HorizontalJustify = TextSettings.HorizontalJustify.GetInverse();
             }
 
-            if (HasShape)
+            if (this is TextWithShape)
             {
+                // Only create the containing group if there are multiple items - so a shape and a
+                // text This makes it somewhat dodgy from an OO point of view (checking the type is
+                // TextWithShape and using the overload) - consider refactoring, but for now the mess
+                // is limited to a few classes and doesn't leak out to the calling classes - so not a
+                // high priority.
                 await Writer.WriteStartElementAsync("g");
-                await Writer.WriteInheritedAttributeStringAsync("stroke", TextSettings.StrokeWidth);
+                await Writer.WriteInheritedAttributeStringAsync("stroke", TextSettings.Stroke);
                 await Writer.WriteInheritedAttributeStringAsync("stroke-width", TextSettings.StrokeWidth);
                 await Writer.WriteNonInheritedAttributeStringAsync("class", CssClass);
+                await RenderShape(X, Y, Angle, shape);
             }
             else
             {
@@ -160,7 +166,7 @@ namespace KiCadDoxer.Renderer.Schematic
 
             await Writer.WriteTextAsync(X + dx, Y + dy, Angle, Value, TextSettings);
 
-            if (HasShape)
+            if (this is TextWithShape)
             {
                 await Writer.WriteEndElementAsync("g");
             }

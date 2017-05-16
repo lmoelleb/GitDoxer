@@ -2,7 +2,7 @@
 
 namespace KiCadDoxer.Renderer.Schematic
 {
-    internal class TextHierarchicalLabel : Text
+    internal class TextHierarchicalLabel : TextWithShape
     {
         public TextHierarchicalLabel(RenderContext renderContext) : base(renderContext)
         {
