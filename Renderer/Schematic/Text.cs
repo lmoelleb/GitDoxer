@@ -11,11 +11,21 @@ namespace KiCadDoxer.Renderer.Schematic
         {
         }
 
+        protected Text(RenderContext renderContext, int x, int y, int angle, string text, TextSettings textSettings)
+            : base(renderContext)
+        {
+            this.Angle = angle;
+            this.X = x;
+            this.Y = y;
+            this.Value = text;
+            this.TextSettings = textSettings;
+        }
+
         public int Angle { get; private set; }
 
         public TextSettings TextSettings { get; private set; }
 
-        public Token Value { get; private set; }
+        public string Value { get; private set; }
 
         public int X { get; private set; }
 
@@ -24,6 +34,8 @@ namespace KiCadDoxer.Renderer.Schematic
         protected abstract string CssClass { get; }
 
         protected virtual bool IsTextHorizontalAligmentInversed => false;
+
+        protected Shape ShapeToRender { get; private set; } = Shape.Unspecified;
 
         protected abstract string Stroke { get; }
 
@@ -58,37 +70,75 @@ namespace KiCadDoxer.Renderer.Schematic
                     throw new Exception("Unknown text type: " + type);
             }
 
+            await text.Load();
             await text.Render();
             return text;
+        }
+
+        internal async Task Render()
+        {
+            // Initialize the base class first before calling "Render" on the child items. This is
+            // not done as a virtual method to ensure the base is always rendered without having to
+            // call base.Render from the derived classes. Yes, it can be argued both ways...
+
+            if (this is TextWithShape)
+            {
+                // Only create the containing group if there are multiple items - so a shape and a
+                // text This makes it somewhat dodgy from an OO point of view (checking the type is
+                // TextWithShape and using the overload) - consider refactoring, but for now the mess
+                // is limited to a few classes and doesn't leak out to the calling classes - so not a
+                // high priority.
+                await Writer.WriteStartElementAsync("g");
+                await Writer.WriteInheritedAttributeStringAsync("stroke", TextSettings.Stroke);
+                await Writer.WriteInheritedAttributeStringAsync("stroke-width", TextSettings.StrokeWidth);
+                await Writer.WriteNonInheritedAttributeStringAsync("class", CssClass);
+                await RenderShape(X, Y, Angle, ShapeToRender);
+            }
+            else
+            {
+                TextSettings.ClassNames = CssClass;
+            }
+
+            (int dx, int dy) = UnrotatedTextOffset;
+
+            double angleAsRad = Angle * Math.PI / 180.0;
+
+            double dxRotated = dx * Math.Cos(angleAsRad) - dy * Math.Sin(angleAsRad);
+            double dyRotated = dx * Math.Sin(angleAsRad) + dy * Math.Cos(angleAsRad);
+
+            int finalX = (int)Math.Round(X + dxRotated);
+            int finalY = (int)Math.Round(Y + dyRotated);
+
+            await Writer.WriteTextAsync(finalX, finalY, Angle, Value, TextSettings);
+
+            if (this is TextWithShape)
+            {
+                await Writer.WriteEndElementAsync("g");
+            }
         }
 
         protected virtual Task RenderShape() => Task.CompletedTask;
 
         protected virtual Task RenderShape(double x, double y, double angle, Shape shape) => Task.CompletedTask;
 
-        private async Task Render()
+        private async Task Load()
         {
-            // Initialize the base class first before calling "Render" on the child items. This is
-            // not done as a virtual method to ensure the base is always rendered without having to
-            // call base.Render from the derived classes. Yes, it can be argued both ways...
             TextSettings = new TextSettings();
-
             TextSettings.Stroke = Stroke;
 
             X = await LineSource.Read(typeof(int));
             Y = await LineSource.Read(typeof(int));
-
             TextSettings.VerticalJustify = VerticalJustify;
 
             // Double cast. A bit dodgy and should be refactored... but then... it is a bit funny :)
             var orientation = (Orientation)(int)(await LineSource.Read(0, 1, 2, 3));
 
             TextSettings.Size = await LineSource.Read(typeof(int));
-            Shape shape = Shape.Unspecified;
+            ShapeToRender = Shape.Unspecified;
 
             if (this is TextWithShape)
             {
-                shape = (await LineSource.Read(typeof(Shape))).ToEnum<Shape>();
+                ShapeToRender = (await LineSource.Read(typeof(Shape))).ToEnum<Shape>();
             }
 
             await LineSource.Read("~"); // I wonder when I will encounter a text here???
@@ -115,60 +165,25 @@ namespace KiCadDoxer.Renderer.Schematic
             Value = await LineSource.Read(TokenType.LineOfText);
             await LineSource.Read(TokenType.EndOfFile, TokenType.LineBreak);
 
-            (int dx, int dy) = UnrotatedTextOffset;
-
             switch (orientation)
             {
                 case Orientation.Left:
                     TextSettings.HorizontalJustify = TextHorizontalJustify.Right;
-                    dx = -dx;
                     break;
 
                 case Orientation.Up:
                     Angle = 270;
-                    int temp = dx;
-                    dx = dy; // Vertical text is always offset to the left in KiCad
-                    dy = temp;
                     break;
 
                 case Orientation.Down:
                     Angle = 270;
                     TextSettings.HorizontalJustify = TextHorizontalJustify.Right;
-
-                    temp = dx;
-                    dx = dy; // Vertical text is always offset to the left in KiCad
-                    dy = temp;
                     break;
             }
 
             if (IsTextHorizontalAligmentInversed)
             {
                 TextSettings.HorizontalJustify = TextSettings.HorizontalJustify.GetInverse();
-            }
-
-            if (this is TextWithShape)
-            {
-                // Only create the containing group if there are multiple items - so a shape and a
-                // text This makes it somewhat dodgy from an OO point of view (checking the type is
-                // TextWithShape and using the overload) - consider refactoring, but for now the mess
-                // is limited to a few classes and doesn't leak out to the calling classes - so not a
-                // high priority.
-                await Writer.WriteStartElementAsync("g");
-                await Writer.WriteInheritedAttributeStringAsync("stroke", TextSettings.Stroke);
-                await Writer.WriteInheritedAttributeStringAsync("stroke-width", TextSettings.StrokeWidth);
-                await Writer.WriteNonInheritedAttributeStringAsync("class", CssClass);
-                await RenderShape(X, Y, Angle, shape);
-            }
-            else
-            {
-                TextSettings.ClassNames = CssClass;
-            }
-
-            await Writer.WriteTextAsync(X + dx, Y + dy, Angle, Value, TextSettings);
-
-            if (this is TextWithShape)
-            {
-                await Writer.WriteEndElementAsync("g");
             }
         }
     }

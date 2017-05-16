@@ -57,6 +57,10 @@ namespace KiCadDoxer.Renderer.Schematic
                         // Could check nothing follows, but not sure KiCad cares... I don't :)
                         break;
 
+                    case "$Sheet":
+                        await Sheet.Render(RenderContext);
+                        break;
+
                     case "Connection":
                         await Connection.Render(RenderContext);
                         break;

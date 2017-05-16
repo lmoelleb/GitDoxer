@@ -2,19 +2,19 @@
 {
     internal enum Shape
     {
-        [EnumStringValue("UnSpc")]
+        [EnumStringValue("UnSpc", "U")]
 
         // "Passive" in the UI
         Unspecified,
 
-        [EnumStringValue("Input")]
+        [EnumStringValue("Input", "I")]
         Input,
 
-        [EnumStringValue("Output")]
+        [EnumStringValue("Output", "O")]
         Output,
 
         // Renders identical, so I just chose Bidirectional for now.
-        [EnumStringValue("BiDi", "3State")]
+        [EnumStringValue("BiDi", "3State", "B", "T")]
         Bidirectional,
     }
 }
