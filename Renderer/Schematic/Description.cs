@@ -17,7 +17,7 @@ namespace KiCadDoxer.Renderer.Schematic
             return description;
         }
 
-        public async Task Render()
+        private async Task Render()
         {
             await LineSource.Read(TokenType.Atom); // Paper size, for example "A4"
 

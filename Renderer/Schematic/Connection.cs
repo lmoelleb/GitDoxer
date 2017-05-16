@@ -19,7 +19,7 @@ namespace KiCadDoxer.Renderer.Schematic
             return connect;
         }
 
-        public async Task Render()
+        private async Task Render()
         {
             await LineSource.Read("~");
             X = await LineSource.Read(typeof(int));
