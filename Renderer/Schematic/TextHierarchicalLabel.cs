@@ -25,7 +25,11 @@ namespace KiCadDoxer.Renderer.Schematic
             {
                 double width = TextSettings.StrokeWidth;
                 double ii = TextSettings.Size + TextMargin + width;
-                return ((int)Math.Round(-ii), 0);
+                if (TextSettings.HorizontalJustify == TextHorizontalJustify.Right)
+                {
+                    ii *= -1;
+                }
+                return ((int)Math.Round(ii), 0);
             }
         }
     }
