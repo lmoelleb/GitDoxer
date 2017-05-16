@@ -8,6 +8,11 @@ namespace KiCadDoxer.Renderer.Schematic
         {
         }
 
+        public TextHierarchicalLabel(RenderContext renderContext, int x, int y, int angle, string text, Shape shape, TextSettings textSettings)
+            : base(renderContext, x, y, angle, text, shape, textSettings)
+        {
+        }
+
         protected override string CssClass => "hlabel";
 
         protected override bool IsTextHorizontalAligmentInversed => true;

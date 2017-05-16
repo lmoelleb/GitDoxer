@@ -12,13 +12,19 @@ namespace KiCadDoxer.Renderer.Schematic
         }
 
         protected Text(RenderContext renderContext, int x, int y, int angle, string text, TextSettings textSettings)
-            : base(renderContext)
+            : this(renderContext)
         {
             this.Angle = angle;
             this.X = x;
             this.Y = y;
             this.Value = text;
             this.TextSettings = textSettings;
+        }
+
+        protected Text(RenderContext renderContext, int x, int y, int angle, string text, Shape shape, TextSettings textSettings)
+            : this(renderContext, x, y, angle, text, textSettings)
+        {
+            this.ShapeToRender = shape;
         }
 
         public int Angle { get; private set; }

@@ -12,6 +12,11 @@ namespace KiCadDoxer.Renderer.Schematic
         {
         }
 
+        protected TextWithShape(RenderContext renderContext, int x, int y, int angle, string text, Shape shape, TextSettings textSettings)
+            : base(renderContext, x, y, angle, text, shape, textSettings)
+        {
+        }
+
         protected virtual double PointyShapePartWidth => this.TextSettings.Size / 2.0;
 
         protected virtual double ShapeHeight => this.TextSettings.Size;

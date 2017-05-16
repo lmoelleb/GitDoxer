@@ -72,57 +72,116 @@ namespace KiCadDoxer.Renderer.Schematic
                     break;
                 }
 
-                // Could reuse textSettings between most fields, but then I would have to deal with
-                // size changes.... could even reuse between calls... later... maybe
-                TextSettings textSettings = new TextSettings();
-                textSettings.Stroke = index == 0 ? "rgb(0,132,132)" : "rgb(132,132,0)";
-                textSettings.StrokeWidth = Settings.DefaultStrokeWidth;
-
-                Text text;
-
                 string value = await LineSource.Read(typeof(string));
-                int angle = 0;
                 if (index < 2)
                 {
-                    // Sheet or file name
-                    textSettings.Size = await LineSource.Read(typeof(int));
-                    int yField = Y;
-                    if (index == 1)
-                    {
-                        // A bit of a hack - the file name is written under the frame, but we still
-                        // want a small offset so the top of the letters do not hit the actual frame.
-                        // By pretending to render 180 degrees, the "normal label offset" will move
-                        // the text down instead of up. By then specifying the text should
-                        // automatically be turned to be oriented so it is not upside down the
-                        // rendering will happen at the desired location.
-                        yField += Height;
-                        textSettings.VerticalJustify = TextVerticalJustify.Bottom;
-                        textSettings.HorizontalJustify = TextHorizontalJustify.Right;
-                        textSettings.AutoRotateUpsideDownText = true;
-                        angle = 180;
-                    }
-
-                    string prefix = index == 0 ? "Sheet: " : "File: ";
-                    textSettings.ClassNames = index == 0 ? "title" : "file";
-
-                    text = new TextLabel(RenderContext, X, yField, angle, prefix + value, textSettings);
-
-                    await text.Render();
+                    await RenderSheetTitleOrFile(index, value);
                 }
                 else
                 {
-                    Shape shape = (await LineSource.Read(typeof(Shape))).ToEnum<Shape>();
-                    Side side = (await LineSource.Read(typeof(Side))).ToEnum<Side>();
-
-                    int x = await LineSource.Read(typeof(int));
-                    int y = await LineSource.Read(typeof(int));
-                    int size = await LineSource.Read(typeof(int));
+                    await RenderSheetPin(index, value);
                 }
 
                 index++;
             }
 
             await Writer.WriteEndElementAsync("g");
+        }
+
+
+        private async Task RenderSheetPin(int index, string value)
+        {
+            Shape shape = (await LineSource.Read(typeof(Shape))).ToEnum<Shape>();
+            Side side = (await LineSource.Read(typeof(Side))).ToEnum<Side>();
+
+            int x = await LineSource.Read(typeof(int));
+            int y = await LineSource.Read(typeof(int));
+            int size = await LineSource.Read(typeof(int));
+            int angle = 0;
+
+            TextSettings textSettings = new TextSettings
+            {
+                ClassNames = "hpin",
+                Stroke = "rgb(132,132,0)",
+                Size = size,
+                StrokeWidth = Settings.DefaultStrokeWidth,
+                VerticalJustify = TextVerticalJustify.Center
+            };
+
+
+            // OK, now it get's ugly, please close your eyes
+            // A pin inside a sheet is rendered identical to a hierarchical label, except the
+            // shape must point in the opposite direction as this is "going inside the box" instead
+            // of "going outside the sheet".
+            // The sensible thing is to have generic code that renders this shape and text and use this
+            // from both the HLabel and the sheet. But that requires refactoring - which is fine once
+            // it is clear how to get a decent OO structure after the refactoring. As this is not clear
+            // to me right now (and not a priority to get clear) I am going to simply make the sheet
+            // "conform to the HLabel requirements" - so basically use the HLabel renderer as is, with
+            // the inputs hacked to give the desired outcome.
+
+            if (shape == Shape.Input)
+            {
+                shape = Shape.Output;
+            }
+            else if (shape == Shape.Output)
+            {
+                shape = Shape.Input;
+            }
+
+            textSettings.AutoRotateUpsideDownText = true;
+            textSettings.HorizontalJustify = TextHorizontalJustify.Right;
+            switch (side)
+            {
+                case Side.Left:
+                    angle = 180;
+                    break;
+                case Side.Bottom:
+                    angle = 270;
+                    break;
+                case Side.Top:
+                    angle = 90;
+                    break;
+            }
+
+            TextHierarchicalLabel hLabel = new TextHierarchicalLabel(RenderContext, x, y, angle, value, shape, textSettings);
+            await hLabel.Render();
+    }
+
+    private async Task RenderSheetTitleOrFile(int index, string value)
+        {
+            TextSettings textSettings = new TextSettings();
+            textSettings.Stroke = index == 0 ? "rgb(0,132,132)" : "rgb(132,132,0)";
+            textSettings.StrokeWidth = Settings.DefaultStrokeWidth;
+
+
+            Text text;
+            // Sheet or file name
+            textSettings.Size = await LineSource.Read(typeof(int));
+            int yField = Y;
+            int angle = 0;
+
+            if (index == 1)
+            {
+                // A bit of a hack - the file name is written under the frame, but we still
+                // want a small offset so the top of the letters do not hit the actual frame.
+                // By pretending to render 180 degrees, the "normal label offset" will move
+                // the text down instead of up. By then specifying the text should
+                // automatically be turned to be oriented so it is not upside down the
+                // rendering will happen at the desired location.
+                yField += Height;
+                textSettings.VerticalJustify = TextVerticalJustify.Bottom;
+                textSettings.HorizontalJustify = TextHorizontalJustify.Right;
+                textSettings.AutoRotateUpsideDownText = true;
+                angle = 180;
+            }
+
+            string prefix = index == 0 ? "Sheet: " : "File: ";
+            textSettings.ClassNames = index == 0 ? "title" : "file";
+
+            text = new TextLabel(RenderContext, X, yField, angle, prefix + value, textSettings);
+
+            await text.Render();
         }
     }
 }
