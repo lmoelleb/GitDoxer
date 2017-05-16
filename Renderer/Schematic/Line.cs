@@ -1,7 +1,9 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 
 namespace KiCadDoxer.Renderer.Schematic
 {
+    // One could argue Entry and Wire should be made as subclasses - feel free to refactor.
     internal class Line : RenderItem
     {
         private Line(RenderContext renderContext) : base(renderContext)
@@ -16,16 +18,35 @@ namespace KiCadDoxer.Renderer.Schematic
 
         public int Y2 { get; private set; }
 
-        public static async Task<Line> Render(RenderContext context)
+        public static async Task<Line> Render(RenderContext context, string baseToken)
         {
             var line = new Line(context);
-            await line.Render();
+            await line.Render(baseToken);
             return line;
         }
 
-        public async Task Render()
+        private async Task Render(string baseToken)
         {
-            var type = await LineSource.Read("Wire", "Bus", "Notes");
+            Token type;
+            string entryClassText = "";
+
+            if (baseToken == "Wire")
+            {
+                type = await LineSource.Read("Wire", "Bus", "Notes");
+            }
+            else if (baseToken == "Entry")
+            {
+                type = await LineSource.Read("Wire", "Bus");
+                entryClassText = "entry ";
+            }
+            else
+            {
+                // Not throwing a file format exception as the root will only call Line.Render for a
+                // predefined set of tokens - so it is a programming error, not something in the
+                // input file if this exception is thrown.
+                throw new NotSupportedException($"Unknown base token {baseToken} for a line.");
+            }
+
             await LineSource.Read("Line");
             await LineSource.Read(TokenType.LineBreak);
             X1 = await LineSource.Read(typeof(int));
@@ -36,7 +57,7 @@ namespace KiCadDoxer.Renderer.Schematic
 
             await Writer.WriteStartElementAsync("line");
 
-            await Writer.WriteNonInheritedAttributeStringAsync("class", type.ToLowerInvariant());
+            await Writer.WriteNonInheritedAttributeStringAsync("class", entryClassText + type.ToLowerInvariant());
 
             await Writer.WriteNonInheritedAttributeStringAsync("x1", X1);
             await Writer.WriteNonInheritedAttributeStringAsync("y1", Y1);

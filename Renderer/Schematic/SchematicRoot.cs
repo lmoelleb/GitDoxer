@@ -70,7 +70,8 @@ namespace KiCadDoxer.Renderer.Schematic
                         break;
 
                     case "Wire":
-                        await Line.Render(RenderContext);
+                    case "Entry":
+                        await Line.Render(RenderContext, token);
                         break;
                 }
             }

@@ -7,16 +7,18 @@ namespace KiCadDoxer.Renderer.Tests.Schematic
 {
     public class LineTests
     {
-        [Fact]
-        public async Task BussesAreBlueAndFat()
+        [Theory]
+        [InlineData("Wire", "bus")]
+        [InlineData("Entry", "entry bus")]
+        public async Task BussesAreBlueAndFat(string rootType, string expectedClass)
         {
             var testCase = new SchematicTestRenderContext("Bus Line\r\n1 2 3 4\r\n", false);
             var testWriter = new TestFragmentWriter();
             testCase.PushSvgWriter(testWriter);
 
-            await (Line.Render(testCase));
+            await (Line.Render(testCase, rootType));
 
-            Assert.True(testWriter.ContainsLine(1, 2, 3, 4, ("stroke", "rgb(0,0,132)", true), ("stroke-width", "12", true), ("class", "bus", false)));
+            Assert.True(testWriter.ContainsLine(1, 2, 3, 4, ("stroke", "rgb(0,0,132)", true), ("stroke-width", "12", true), ("class", expectedClass, false)));
         }
 
         [Theory]
@@ -38,8 +40,16 @@ namespace KiCadDoxer.Renderer.Tests.Schematic
         public async Task IncompleteLineOrWrongTokensThrows(string line, string expectedInException)
         {
             var testCase = new SchematicTestRenderContext(line, false);
-            var ex = await Assert.ThrowsAsync<KiCadFileFormatException>(async () => await Line.Render(testCase));
+            var ex = await Assert.ThrowsAsync<KiCadFileFormatException>(async () => await Line.Render(testCase, "Wire"));
             Assert.Contains(expectedInException, ex.Message);
+        }
+
+        [Fact]
+        public async Task EntryCantHaveNotesType()
+        {
+            var testCase = new SchematicTestRenderContext("Notes", false);
+            var ex = await Assert.ThrowsAsync<KiCadFileFormatException>(async () => await Line.Render(testCase, "Entry"));
+            Assert.Contains("Notes", ex.Message);
         }
 
         [Fact]
@@ -49,7 +59,7 @@ namespace KiCadDoxer.Renderer.Tests.Schematic
             var testWriter = new TestFragmentWriter();
             testCase.PushSvgWriter(testWriter);
 
-            await (Line.Render(testCase));
+            await (Line.Render(testCase, "Wire"));
 
             Assert.True(testWriter.ContainsLine(1, 2, 3, 4,
                 ("stroke", "rgb(0,0,132)", true),
@@ -58,16 +68,18 @@ namespace KiCadDoxer.Renderer.Tests.Schematic
                 ("stroke-dasharray", "13.685,15.8425", true)));
         }
 
-        [Fact]
-        public async Task WiresAreGreenAndThin()
+        [Theory]
+        [InlineData("Wire", "wire")]
+        [InlineData("Entry", "entry wire")]
+        public async Task WiresAreGreenAndThin(string rootType, string expectedClass)
         {
             var testCase = new SchematicTestRenderContext("Wire Line\r\n1 2 3 4\r\n", false);
             var testWriter = new TestFragmentWriter();
             testCase.PushSvgWriter(testWriter);
 
-            await (Line.Render(testCase));
+            await (Line.Render(testCase, rootType));
 
-            Assert.True(testWriter.ContainsLine(1, 2, 3, 4, ("stroke", "rgb(0,132,0)", true), ("stroke-width", "6", true), ("class", "wire", false)));
+            Assert.True(testWriter.ContainsLine(1, 2, 3, 4, ("stroke", "rgb(0,132,0)", true), ("stroke-width", "6", true), ("class", expectedClass, false)));
         }
     }
 }
